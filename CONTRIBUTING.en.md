@@ -1,6 +1,6 @@
 # Contributing
 
-[中文](CONTRIBUTING.md) · [Project overview](README.en.md)
+[中文](CONTRIBUTING.md) · [Project overview](README.md)
 
 ## No external pull requests for now
 
@@ -24,7 +24,7 @@ For credential exposure, unauthorized access or actions, and other security issu
 
 ## Set up development
 
-Follow [README.en.md](README.en.md) to prepare the toolchain and runtime. Ordinary app development does not require the maintainer's signing key, beta-channel token or production deployment credentials.
+Follow [README.md](README.md) (Chinese) to prepare the toolchain and runtime. Ordinary app development does not require the maintainer's signing key, beta-channel token or production deployment credentials.
 
 - Flutter/Dart: use the repository's Flutter version and the app's Dart SDK requirement.
 - Android: use JDK 17 and match the runtime ABI to the APK flavor.
