@@ -75,60 +75,49 @@ dsh-root --self-test
 
 ## 安装
 
-### 直接用现成 APK
+本仓库**不提供预编译包**，也不在 GitHub Actions 上出包：APK 必须在一台 Linux 机器上构建（见下节）。构建完成后把 `app/build/app/outputs/flutter-apk/app-arm64-release.apk` 拷到手机安装，或 `adb install -r`。
 
-1. 打开 [Actions](https://github.com/AtT6669/dsh-go-root/actions/workflows/build-apk.yml) → **Test APK** → **Run workflow**（`flavor=arm64`）。
-2. 跑完后在运行页底部 **Artifacts** 下载 `dsh-go-arm64-apk`，解压得到 `app-arm64-release.apk`。
-3. 传到手机安装，arm64 覆盖绝大多数真机；模拟器选 `x64`。
+- **签名**：没有 `app/android/key.properties` 时，release 包回退到**调试签名**——能装能测，但不能覆盖官方签名版，也不能上架。要正式签名，按 [本地打包指南](docs/maintenance/local-build.md) 的「签名」一节配好四项再打包。
+- 手机上已装官方签名版时，系统会拒绝同包名不同签名的安装，需要先卸载；卸载会清空对话、Linux 环境与设置。
+- arm64 覆盖绝大多数真机；模拟器用 `-f x64`。
 
-> **签名**：仓库没有配置签名密钥时，构建回退到**调试签名**——能装能测，但不能覆盖官方签名版，也不能上架。
-> 手机上有官方版时请先卸载；卸载会清空对话、Linux 环境与设置。
+## 本地构建（Linux）
 
-### 自己配签名（可选）
-
-在仓库 Secrets 里配置以下四项，工作流会自动改用正式密钥签名：
-
-```
-ANDROID_KEYSTORE_BASE64      # .jks 的 base64
-ANDROID_KEYSTORE_PASSWORD
-ANDROID_KEY_ALIAS
-ANDROID_KEY_PASSWORD
-```
-
-## 从源码构建
-
-### GitHub Actions（推荐，本机无需任何工具链）
-
-`.github/workflows/build-apk.yml` 在 Ubuntu 24.04 上完成：装 JDK 17 / Flutter 3.47.7 / Android SDK → `python3 app/tool/l10n_merge.py` 生成多语言 → `bash runtime/build-runtime.sh arm64-v8a` → `bash tooling/build-apk.sh -f arm64` → 上传 artifact。公开仓库的运行器不计费。
-
-可填三个输入：`flavor`（arm64/x64）、`build_name`（默认取 `app/pubspec.yaml`）、`build_number`（默认取构建分钟）。
-
-### 本地 Linux
+环境：x86_64 Linux（Ubuntu 22.04 / 24.04 实测），需要 `bash`、`python3`、`curl`、`unzip`、`xz`；**不需要 root**（工具链装在 `~/dev`）；建议预留 15 GB 以上磁盘。
 
 ```bash
-# 1) 一次性装工具链（JDK 17 / Flutter 3.47.7 / Android SDK / NDK）
-bash tooling/setup-toolchain.sh && source tooling/env.sh
+# 0) 克隆
+git clone https://github.com/AtT6669/dsh-go-root && cd dsh-go-root
 
-# 2) 重新生成多语言输出（ARB 改动后必须做）
+# 1) 一次性安装工具链：JDK 17 + Flutter 3.47.7 + Android SDK / NDK
+bash tooling/setup-toolchain.sh
+source tooling/env.sh
+
+# 2) 生成多语言输出（app/lib/l10n/gen 是构建输入，不能省）
 python3 app/tool/l10n_merge.py
 
-# 3) 构建运行时（PRoot + Ubuntu + Node + dsh 引擎 + 内置插件）
+# 3) 构建 PRoot 运行时（Ubuntu + Node + dsh 引擎 + 内置 dsh-purge）
 bash runtime/build-runtime.sh arm64-v8a
 
 # 4) 打包
-bash tooling/build-apk.sh -f arm64          # 产物在 app/build/app/outputs/flutter-apk/
+bash tooling/build-apk.sh -f arm64
 ```
 
-注意：
+产物在 `app/build/app/outputs/flutter-apk/app-arm64-release.apk`，脚本会用 aapt2 回读 versionName / versionCode 核对。
 
-- 第 3 步**必须**在 Linux（或 WSL2 + 发行版）上跑；Windows / macOS 只能跑 Dart 部分。
-- release 打包前 `tooling/check_runtime_bundle.py` 会校验 `runtime/out/<abi>` 的四件套（`libproot.so`、`libproot-loader.so`、`libtalloc.so`、`libandroid-shmem.so`）与 manifest 的 size/sha256，缺一个就中止——**debug 包会跳过这个校验，装上也没有引擎**。
-- `versionCode` 由构建分钟生成，`versionName` 取自 `app/pubspec.yaml` 的 `version:`（当前 `1.0.15`）。
+三个常见坑：
+
+- 第 3 步只能在 Linux 上跑；`runtime/out/<abi>` 不存在时，release 打包会被 `tooling/check_runtime_bundle.py` 直接拒绝（`--debug` 会跳过校验，但装上也用不了 root 与内置插件）。
+- deb 锁过期（镜像删掉旧版本 → 下载 404）时，用 `UPDATE_DEB_LOCK=1 bash runtime/build-runtime.sh arm64-v8a` 重新解析，并把 `runtime/locks/ubuntu-noble-*.json` 的改动提交。
+- 中途失败可以直接重跑，已下载的输入缓存在 `runtime/.cache/`。
+
+完整的步骤、签名、校验与排错见 **[docs/maintenance/local-build.md](docs/maintenance/local-build.md)**。
 
 ## 文档
 
 | 文档 | 内容 |
 | --- | --- |
+| [docs/maintenance/local-build.md](docs/maintenance/local-build.md) | 打包：Linux 本地出包、签名、验收与排错 |
 | [docs/guide/zh/13-root.md](docs/guide/zh/13-root.md) | 使用指南：Root 增强一章 |
 | [docs/design/root-exec.md](docs/design/root-exec.md) | 设计：通道拓扑、四个操作、限额与失败语义 |
 | [docs/maintenance/root-exec-contract.md](docs/maintenance/root-exec-contract.md) | 维护：CLI 与桥接的契约（改协议前必读） |

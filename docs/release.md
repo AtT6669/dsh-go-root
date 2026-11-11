@@ -73,30 +73,26 @@ versionCode = (年 - 2026) × 10^8 + MMDDhhmm      时钟固定按 UTC+8
 - **绕过脚本时**（`flutter run`、IDE）：`build.gradle.kts` 发现 versionCode 还是占位的 `1`，就按同一公式现算。否则装到已有新号的设备上会被当成降级，`flutter run` 会先卸载旧版再装，数据全清。
 - 测试：`python3 -m unittest discover -s tooling -p 'test_*.py'`。
 
-## 测试包：在 GitHub 上构建
+## 测试包：本地 Linux 构建
 
-本机没有 Linux / Flutter 工具链时，用 [`.github/workflows/build-apk.yml`](../.github/workflows/build-apk.yml) 在 GitHub 的 Linux runner 上出包：
-
-1. 推到 GitHub 后，Actions → Test APK → Run workflow：选 flavor（arm64 真机、x64 模拟器），`build_name` / `build_number` 留空即用 `app/pubspec.yaml` 的版本名与构建分钟。
-2. 跑完在本次运行页面底部下载 Artifacts 里的 `dsh-go-arm64-apk`。
-3. 安装：`adb install -r <apk>`，或把 APK 拷进手机点安装。
-
-workflow 做的事：checkout → JDK 17 + Flutter 3.47.7 → 补齐 Flutter 需要的 SDK 包（compileSdk / NDK）→ `flutter pub get` 与 `local.properties` → `gradle wrapper`（仓库不跟踪 `gradlew`）→ `python3 app/tool/l10n_merge.py` → `bash runtime/build-runtime.sh <abi>` → `bash tooling/build-apk.sh -f <flavor>` → 上传 APK，并在运行摘要里打印 versionName / versionCode / SHA-256。
-
-- **签名**：没有配置仓库 secrets 时，release 用打包机的 debug key 签名，能装能跑；手机上若已装官方签名的版本，系统会拒绝覆盖安装，需先卸载（会清数据）。要直接覆盖官方版本，配置四个 secrets：`ANDROID_KEYSTORE_BASE64`（`.jks` 的 base64）、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`。
-- **为什么必须先构建运行时**：release 打包前 `tooling/check_runtime_bundle.py` 会校验 `runtime/out/<abi>`（`libproot.so` 等四个 JNI 库 + manifest 里的 size/sha256），这些文件只能由 `runtime/build-runtime.sh` 在 x86_64 Linux 上产出；没有它们 APK 里就没有 PRoot、Ubuntu 根文件系统、Node 和引擎。`--debug` 跳过该校验，只适合调界面。
-- **文案**：`app/lib/l10n/gen/` 是构建输入，workflow 里用 Flutter 现生成；在本机跑过 `l10n_merge.py` 并提交后这一步就只是空跑。
-- 这个 workflow 只出安装包：不建 Release、不写 `update.json`、不传下载桶。
-
-本地 Linux（有 bash 的机器）等价命令：
+出包只在这台 Linux 机器上做，不经过 GitHub Actions：
 
 ```sh
+git clone https://github.com/AtT6669/dsh-go-root && cd dsh-go-root
 bash tooling/setup-toolchain.sh            # 一次性：JDK 17 + Flutter + Android SDK，装到 ~/dev
 source tooling/env.sh
 python3 app/tool/l10n_merge.py             # 生成文案（需要 flutter 在 PATH 上）
 bash runtime/build-runtime.sh arm64-v8a    # 产出 runtime/out/arm64-v8a
 bash tooling/build-apk.sh -f arm64         # 产物在 app/build/app/outputs/flutter-apk/
+adb install -r app/build/app/outputs/flutter-apk/app-arm64-release.apk
 ```
+
+步骤、签名、校验与排错的完整版见 [maintenance/local-build.md](maintenance/local-build.md)。
+
+- **签名**：没有 `app/android/key.properties` 时，release 用打包机的 debug key 签名，能装能跑；手机上若已装官方签名的版本，系统会拒绝覆盖安装，需先卸载（会清数据）。要直接覆盖官方版本，在 `app/android/key.properties` 里配置 `storeFile`、`storePassword`、`keyAlias`、`keyPassword` 后重新打包。
+- **为什么必须先构建运行时**：release 打包前 `tooling/check_runtime_bundle.py` 会校验 `runtime/out/<abi>`（`libproot.so` 等四个 JNI 库 + manifest 里的 size/sha256），这些文件只能由 `runtime/build-runtime.sh` 在 x86_64 Linux 上产出；没有它们 APK 里就没有 PRoot、Ubuntu 根文件系统、Node 和引擎。`--debug` 跳过该校验，只适合调界面。
+- **文案**：`app/lib/l10n/gen/` 是构建输入，必须先用 `l10n_merge.py` 生成；否则 Dart 侧引用不到新键。
+- **上游固定义项会过期**：Ubuntu 镜像与 Termux 源只保留当前版本，旧 deb 会被删掉（表现为下载 404）。用 `UPDATE_DEB_LOCK=1 bash runtime/build-runtime.sh arm64-v8a` 重新解析 `runtime/locks/ubuntu-noble-*.json`；Termux 的 proot / libtalloc / libandroid-shmem 版本在 `runtime/build-runtime.sh` 顶部与 `PIN` 表里，需一并更新版本号和 sha256。
 
 ## 发版步骤
 
