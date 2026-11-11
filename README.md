@@ -1,5 +1,7 @@
 <div align="center">
 
+<img alt="DSH Go · Root 增强版" src="https://img.shields.io/badge/DSH%20Go-Root%20%E5%A2%9E%E5%BC%BA%E7%89%88-4B67B4?style=for-the-badge&labelColor=2B3245">
+
 # DSH Go · Root 增强版
 
 [ccch1mneyyy/dsh-go](https://github.com/ccch1mneyyy/dsh-go) 的非官方二开分支：**让 root 用户在 App 里真正能用 root**，并把 [dsh-purge](https://github.com/kingcharleslzy-ai/dsh-purge) 预装进内置运行时。
@@ -11,21 +13,43 @@
 <a href="LICENSE"><img alt="许可证 AGPL-3.0" src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-AGPL--3.0-4B67B4?style=flat-square"></a>
 <img alt="Android 8+" src="https://img.shields.io/badge/Android-8%2B-4B67B4?style=flat-square">
 <img alt="Root" src="https://img.shields.io/badge/Root-Magisk%20%2F%20KernelSU%20%2F%20APatch-4B67B4?style=flat-square">
+<img alt="Flutter" src="https://img.shields.io/badge/Flutter-3.47.7-4B67B4?style=flat-square">
+<img alt="运行时" src="https://img.shields.io/badge/Runtime-Ubuntu%2024.04%20%C2%B7%20Node%2024-2B3245?style=flat-square">
 <a href="https://github.com/ccch1mneyyy/dsh-go"><img alt="上游仓库" src="https://img.shields.io/badge/%E4%B8%8A%E6%B8%B8-ccch1mneyyy%2Fdsh--go-2B3245?style=flat-square"></a>
+
+<br>
+
+[快速开始](#install) · [首次使用](#first-run) · [Root 增强](#root) · [内置插件](#plugins) · [本地构建](#build) · [常见问题](#faq)
 
 </div>
 
 ---
 
-## 这个分支解决什么问题
+## 🎯 这个分支解决什么问题
 
 原版给 root 留了管道，但实际体验是"连不连都一样"：命令被保活策略、路径白名单、API 34 预检层层挡住，能做的事很窄，Agent 也发现不了这条通道。
 
 本分支把 root 当成一等公民：**一次授权之后，App 与内置 CLI 的 root 命令静默执行、全部留痕，Agent 也能自动发现并调用**。
 
+<div align="center">
+
+```mermaid
+flowchart LR
+  A["Agent / 内置终端"] -->|"dsh-root"| B["guest: /usr/local/bin/dsh-root"]
+  B -->|"HTTP + Bearer"| C["RootExecServer<br/>127.0.0.1"]
+  C -->|"校验 uid"| D["RootExecController"]
+  D -->|"复用既有 su 进程"| E[("su shell")]
+  E --> F["系统 / 分区 / 服务"]
+  D --> G["审计日志<br/>root-audit.log"]
+```
+
+</div>
+
 ---
 
-## 与原版的差异
+## ⚖️ 与原版的差异
+
+<a id="diff"></a>
 
 | 方面 | 原版 | 本分支 |
 | :--- | :--- | :--- |
@@ -41,7 +65,9 @@
 
 ---
 
-## 系统要求
+## 📱 系统要求
+
+<a id="requirements"></a>
 
 - Android 8.0 及以上，arm64 真机（x86_64 模拟器需自行用 `-f x64` 构建）。
 - 内置运行时首次启动会解包（Ubuntu 24.04 + Node + dsh 引擎 + 插件），需要额外存储与几分钟等待，之后才可对话。
@@ -49,7 +75,9 @@
 
 ---
 
-## 安装
+## 📦 安装
+
+<a id="install"></a>
 
 仓库**不提供预编译 APK**，你需要先在一台 x86_64 Linux 上构建（命令见「本地构建」），得到：
 
@@ -68,18 +96,21 @@ adb install -r app-arm64-release.apk
 
 装完后首次启动按引导完成初始化（解包运行时、选择模型与端点、同意必要权限）。
 
-### 签名与覆盖安装
+### ✍️ 签名与覆盖安装
 
-- 未配置 `app/android/key.properties` 时，构建出的 release 包用**打包机的 debug key** 签名：能装能测，但不能覆盖官方签名版，也不能上架。
-- 包名与官方版相同，**签名不同就无法共存**。手机上已有官方版时，先卸载再装；卸载会清空对话、Linux 环境与设置。
-- 之后升级本分支的新包，只要签名不变就能直接覆盖安装，数据保留。
+> [!WARNING]
+> - 未配置 `app/android/key.properties` 时，构建出的 release 包用**打包机的 debug key** 签名：能装能测，但不能覆盖官方签名版，也不能上架。
+> - 包名与官方版相同，**签名不同就无法共存**。手机上已有官方版时，先卸载再装；卸载会清空对话、Linux 环境与设置。
+> - 之后升级本分支的新包，只要签名不变就能直接覆盖安装，数据保留。
 
 > [!NOTE]
 > **卸载**：在系统里正常卸载即可。root 授权、审计日志、运行时数据都在 App 私有目录，会随卸载一起删除。
 
 ---
 
-## 首次使用
+## 🚀 首次使用
+
+<a id="first-run"></a>
 
 1. 启动后按引导选择模型与端点（与原版相同）。
 2. 等待内置运行时解包完成，进入对话界面。
@@ -87,12 +118,14 @@ adb install -r app-arm64-release.apk
 
 ---
 
-## Root 增强怎么用
+## 🔓 Root 增强怎么用
+
+<a id="root"></a>
 
 > [!IMPORTANT]
 > **前置条件**：手机已 root，且 root 管理器允许给本 App `su`。
 
-1. 打开 **设置 → 能力 → Root 增强**（与「手机控制」同级，不在其子页里）。
+1. 打开 **<kbd>设置</kbd> → <kbd>能力</kbd> → <kbd>Root 增强</kbd>**（与「手机控制」同级，不在其子页里）。
 2. 点「一次授权」，在 root 管理器里同意 `su` 请求。
 3. 页面会显示 `已授权 / 已连接 / 当前 uid / 桥接端口`；点「自检」，返回 `uid=0` 即成功。
 4. 之后 Agent 或你自己都可以直接执行命令：
@@ -115,7 +148,7 @@ dsh-root --self-test
 
 `dsh-root` 位于运行时内 `/usr/local/bin/dsh-root`；Agent 通过内置 `dsh-root` 技能调用它，在内置终端里也可以直接敲。
 
-### 边界（硬限制，不是建议）
+### 🚧 边界（硬限制，不是建议）
 
 - 前台单条命令默认 20 s、上限 25 s；超时返回退出码 `124`。
 - 后台任务最多 8 个，超出直接报错。
@@ -125,21 +158,29 @@ dsh-root --self-test
 
 ---
 
-## 内置插件 dsh-purge
+## 🧩 内置插件 dsh-purge
 
-- 包：`dsh-purge-community` **1.6.91**（MIT），依赖 `yaml` **2.9.1**（ISC/MIT）。
-- 位置：`/opt/dsh-go/plugins/dsh-purge-community`，依赖在 `/opt/dsh-go/plugins/node_modules/yaml`。
-- 校验：构建时从上游 Release / npm 下载，按 `runtime/locks/bundled-plugins.json` 的 sha256 校验后才解包；校验不过构建直接中止。
-- 确认已装：设置 → 插件 能看到；或在 guest 里 `ls /opt/dsh-go/plugins`。
+<a id="plugins"></a>
+
+| 项目 | 值 |
+| :--- | :--- |
+| 包 | `dsh-purge-community` **1.6.91**（MIT） |
+| 依赖 | `yaml` **2.9.1**（ISC/MIT） |
+| 安装位置 | `/opt/dsh-go/plugins/dsh-purge-community`，依赖在 `/opt/dsh-go/plugins/node_modules/yaml` |
+| 校验 | 构建时从上游 Release / npm 下载，按 `runtime/locks/bundled-plugins.json` 的 sha256 校验后才解包；校验不过构建直接中止 |
+| 确认已装 | 设置 → 插件 能看到；或在 guest 里 `ls /opt/dsh-go/plugins` |
 
 > [!NOTE]
 > 预装发生在 `runtime/build-runtime.sh` 构建运行时阶段，**不是**装完 App 再下载。要换版本就改 `runtime/locks/bundled-plugins.json`（name / version / url / sha256），再重新构建运行时。
 
 ---
 
-## 本地构建（Linux）
+## 🛠️ 本地构建（Linux）
 
-环境：x86_64 Linux（Ubuntu 22.04 / 24.04 实测），需要 `bash`、`python3`、`curl`、`unzip`、`xz`；**不需要 root**（工具链装在 `~/dev`）；建议预留 15 GB 以上磁盘。
+<a id="build"></a>
+
+> [!TIP]
+> 环境：x86_64 Linux（Ubuntu 22.04 / 24.04 实测），需要 `bash`、`python3`、`curl`、`unzip`、`xz`；**不需要 root**（工具链装在 `~/dev`）；建议预留 15 GB 以上磁盘。
 
 ```bash
 # 0) 克隆
@@ -168,11 +209,25 @@ bash tooling/build-apk.sh -f arm64
 - 配了代理时 `build-apk.sh` 会把 `HTTPS_PROXY` / `ALL_PROXY` 转给 Gradle，无需手改 `gradle.properties`。
 - 想用正式签名：在 `app/android/key.properties` 写 `storeFile` / `storePassword` / `keyAlias` / `keyPassword`（`chmod 600`），重新打包即可。
 
+<div align="center">
+
+```mermaid
+flowchart LR
+  S["setup-toolchain.sh"] --> L["l10n_merge.py"]
+  L --> R["build-runtime.sh<br/>arm64-v8a"]
+  R -->|"runtime/out"| P["build-apk.sh -f arm64"]
+  P --> Q["app-arm64-release.apk"]
+```
+
+</div>
+
 完整的步骤、签名、产物验收与排错见 **[docs/maintenance/local-build.md](docs/maintenance/local-build.md)**。
 
 ---
 
-## 常见问题
+## 🩺 常见问题
+
+<a id="faq"></a>
 
 | 现象 | 原因与处理 |
 | :--- | :--- |
@@ -187,7 +242,9 @@ bash tooling/build-apk.sh -f arm64
 
 ---
 
-## 仓库结构（只列与本分支相关的部分）
+## 🗂️ 仓库结构（只列与本分支相关的部分）
+
+<a id="layout"></a>
 
 ```text
 app/                     Flutter 客户端
@@ -206,7 +263,9 @@ docs/                    设计、维护、使用指南
 
 ---
 
-## 文档
+## 📚 文档
+
+<a id="docs"></a>
 
 | 文档 | 内容 |
 | :--- | :--- |
@@ -219,9 +278,11 @@ docs/                    设计、维护、使用指南
 
 ---
 
-## 风险提示
+## ⚠️ 风险提示
 
-> [!WARNING]
+<a id="risk"></a>
+
+> [!CAUTION]
 > Root 权限意味着任何命令都能改系统分区、框架与数据。本分支的「一次授权 + 审计日志 + 限额」只是降低误操作与滥用概率，**不构成安全保证**：
 
 - 授权即等于把整台手机的写权限交给 App 及其 Agent；
@@ -232,8 +293,20 @@ docs/                    设计、维护、使用指南
 
 ---
 
-## 与上游的关系
+## 🔗 与上游的关系
+
+<a id="upstream"></a>
 
 - 上游：`ccch1mneyyy/dsh-go`（作者 ccch1mneyyy）。本项目是**非官方**二开，不代表上游立场，也不要向上游报本分支的问题。
 - 许可证继承上游 **AGPL-3.0**：本分支的修改同样以 AGPL-3.0 发布，分发二进制时须一并提供对应源码（含 `runtime/vendor/` 内 proot 的 GPL-2.0 源码归档）。
 - 内置的 `dsh-purge` 为 MIT，`yaml` 为 ISC/MIT，版权归各自作者。
+
+<div align="center">
+
+<br>
+
+<img alt="AGPL-3.0" src="https://img.shields.io/badge/License-AGPL--3.0-4B67B4?style=flat-square">
+
+Made with PRoot · Flutter · dsh ｜ 上游 [ccch1mneyyy/dsh-go](https://github.com/ccch1mneyyy/dsh-go)
+
+</div>
