@@ -1,0 +1,104 @@
+{
+  "phoneRootExecTitle": "Root tools",
+  "phoneRootExecSubtitle": "One consent, then root commands run silently and every one is audited",
+  "phoneRootExecStatus": "Status",
+  "phoneRootExecAuthorized": "Authorization",
+  "phoneRootExecConnected": "Connection",
+  "phoneRootExecUid": "Current uid",
+  "phoneRootExecPort": "Bridge port",
+  "phoneRootExecBusy": "Running a command",
+  "phoneRootExecAuthorizedYes": "Authorized",
+  "phoneRootExecAuthorizedNo": "Not authorized",
+  "phoneRootExecConnectedYes": "Connected",
+  "phoneRootExecConnectedNo": "Not connected",
+  "phoneRootExecPortOff": "Not running",
+  "phoneRootExecLastError": "Last error: {code}",
+  "@phoneRootExecLastError": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "phoneRootExecRefresh": "Refresh",
+  "phoneRootExecLoading": "Reading status…",
+  "phoneRootExecUnavailable": "This build has no Root tools channel. Update DSH Go.",
+  "phoneRootExecAuthorize": "Authorize once",
+  "phoneRootExecAuthorizeTitle": "Allow silent root execution?",
+  "phoneRootExecAuthorizeBody": "After this, every root command from the App and the built-in CLI runs silently with no per-command prompt. Every command is written to the audit log, and you can revoke at any time.",
+  "phoneRootExecAuthorizeAction": "Authorize and connect",
+  "phoneRootExecAuthorizeDone": "Authorized; connecting to root",
+  "phoneRootExecAuthorizeFailed": "Authorization failed",
+  "phoneRootExecSelfTest": "Self-test",
+  "phoneRootExecSelfTestRunning": "Running self-test…",
+  "phoneRootExecSelfTestOk": "Self-test passed: uid=0",
+  "phoneRootExecSelfTestWrongUid": "Self-test failed: uid={uid}",
+  "@phoneRootExecSelfTestWrongUid": {
+    "placeholders": {
+      "uid": {
+        "type": "String"
+      }
+    }
+  },
+  "phoneRootExecSelfTestFailed": "Self-test failed: {reason}",
+  "@phoneRootExecSelfTestFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "phoneRootExecAuditTitle": "Audit log",
+  "phoneRootExecAuditHint": "Latest 50 · every root command is recorded",
+  "phoneRootExecAuditEmpty": "No entries yet",
+  "phoneRootExecAuditLoading": "Loading…",
+  "phoneRootExecAuditLoadFailed": "Could not read the audit log",
+  "phoneRootExecAuditMeta": "{time} · {caller} · exit {exitCode} · {durationMs}ms",
+  "@phoneRootExecAuditMeta": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      },
+      "caller": {
+        "type": "String"
+      },
+      "exitCode": {
+        "type": "int"
+      },
+      "durationMs": {
+        "type": "int"
+      }
+    }
+  },
+  "phoneRootExecCallerApp": "App",
+  "phoneRootExecCallerGuest": "Built-in CLI",
+  "phoneRootExecAuditExport": "Export",
+  "phoneRootExecAuditExported": "Exported: {path}",
+  "@phoneRootExecAuditExported": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "phoneRootExecAuditExportEmpty": "Nothing to export",
+  "phoneRootExecAuditExportFailed": "Export failed",
+  "phoneRootExecAuditClear": "Clear",
+  "phoneRootExecAuditClearTitle": "Clear the audit log?",
+  "phoneRootExecAuditClearBody": "This cannot be undone. Commands already running, or run later, are still recorded.",
+  "phoneRootExecAuditCleared": "Audit log cleared",
+  "phoneRootExecAuditClearFailed": "Could not clear the audit log",
+  "phoneRootExecDanger": "Danger zone",
+  "phoneRootExecRevoke": "Revoke authorization",
+  "phoneRootExecRevokeTitle": "Revoke root authorization?",
+  "phoneRootExecRevokeBody": "The root connection is closed immediately. Running commands will fail, and root commands need a new authorization.",
+  "phoneRootExecRevoked": "Authorization revoked",
+  "phoneRootExecRevokeFailed": "Revocation failed",
+  "phoneRootExecErrorUnauthorized": "Root is not authorized yet",
+  "phoneRootExecErrorBusy": "Another root command is running",
+  "phoneRootExecErrorUnavailable": "Root is unavailable; check your root manager",
+  "phoneRootExecErrorTimeout": "The command timed out",
+  "phoneRootExecErrorExecute": "The command failed",
+  "phoneRootExecErrorUnknown": "Unknown error",
+  "phoneRootExecOpen": "Root tools"
+}

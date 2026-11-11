@@ -1,0 +1,104 @@
+{
+  "phoneRootExecTitle": "Root 增强",
+  "phoneRootExecSubtitle": "一次授权，root 命令静默执行并全部留痕",
+  "phoneRootExecStatus": "状态",
+  "phoneRootExecAuthorized": "授权",
+  "phoneRootExecConnected": "连接",
+  "phoneRootExecUid": "当前 uid",
+  "phoneRootExecPort": "桥接端口",
+  "phoneRootExecBusy": "正在执行命令",
+  "phoneRootExecAuthorizedYes": "已授权",
+  "phoneRootExecAuthorizedNo": "未授权",
+  "phoneRootExecConnectedYes": "已连接",
+  "phoneRootExecConnectedNo": "未连接",
+  "phoneRootExecPortOff": "未开启",
+  "phoneRootExecLastError": "上次错误：{code}",
+  "@phoneRootExecLastError": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "phoneRootExecRefresh": "刷新",
+  "phoneRootExecLoading": "正在读取状态…",
+  "phoneRootExecUnavailable": "此版本未提供 Root 增强通道，请更新 DSH Go。",
+  "phoneRootExecAuthorize": "一次授权",
+  "phoneRootExecAuthorizeTitle": "授权 root 静默执行？",
+  "phoneRootExecAuthorizeBody": "授权后，App 与内置 CLI 的所有 root 命令都将静默执行，不再逐条确认；每条命令都会写入审计日志。可随时撤销。",
+  "phoneRootExecAuthorizeAction": "授权并连接",
+  "phoneRootExecAuthorizeDone": "已授权，正在连接 root",
+  "phoneRootExecAuthorizeFailed": "授权失败",
+  "phoneRootExecSelfTest": "自检",
+  "phoneRootExecSelfTestRunning": "正在自检…",
+  "phoneRootExecSelfTestOk": "自检通过 uid=0",
+  "phoneRootExecSelfTestWrongUid": "自检失败：uid={uid}",
+  "@phoneRootExecSelfTestWrongUid": {
+    "placeholders": {
+      "uid": {
+        "type": "String"
+      }
+    }
+  },
+  "phoneRootExecSelfTestFailed": "自检失败：{reason}",
+  "@phoneRootExecSelfTestFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "phoneRootExecAuditTitle": "审计日志",
+  "phoneRootExecAuditHint": "最近 50 条 · 每条 root 命令都会记录",
+  "phoneRootExecAuditEmpty": "还没有记录",
+  "phoneRootExecAuditLoading": "正在读取…",
+  "phoneRootExecAuditLoadFailed": "读取审计日志失败",
+  "phoneRootExecAuditMeta": "{time} · {caller} · 退出码 {exitCode} · {durationMs}ms",
+  "@phoneRootExecAuditMeta": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      },
+      "caller": {
+        "type": "String"
+      },
+      "exitCode": {
+        "type": "int"
+      },
+      "durationMs": {
+        "type": "int"
+      }
+    }
+  },
+  "phoneRootExecCallerApp": "App",
+  "phoneRootExecCallerGuest": "内置 CLI",
+  "phoneRootExecAuditExport": "导出",
+  "phoneRootExecAuditExported": "已导出：{path}",
+  "@phoneRootExecAuditExported": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "phoneRootExecAuditExportEmpty": "还没有可导出的记录",
+  "phoneRootExecAuditExportFailed": "导出失败",
+  "phoneRootExecAuditClear": "清空",
+  "phoneRootExecAuditClearTitle": "清空审计日志？",
+  "phoneRootExecAuditClearBody": "清空后不可恢复。正在执行或随后执行的命令仍会继续记录。",
+  "phoneRootExecAuditCleared": "审计日志已清空",
+  "phoneRootExecAuditClearFailed": "清空失败",
+  "phoneRootExecDanger": "危险区",
+  "phoneRootExecRevoke": "撤销授权",
+  "phoneRootExecRevokeTitle": "撤销 root 授权？",
+  "phoneRootExecRevokeBody": "撤销后立即断开 root 连接。正在执行的命令会失败，之后需要重新授权。",
+  "phoneRootExecRevoked": "已撤销授权",
+  "phoneRootExecRevokeFailed": "撤销失败",
+  "phoneRootExecErrorUnauthorized": "尚未授权 root",
+  "phoneRootExecErrorBusy": "已有 root 命令在执行",
+  "phoneRootExecErrorUnavailable": "root 不可用，请检查 root 管理器",
+  "phoneRootExecErrorTimeout": "命令超时",
+  "phoneRootExecErrorExecute": "命令执行失败",
+  "phoneRootExecErrorUnknown": "未知错误",
+  "phoneRootExecOpen": "Root 增强"
+}
