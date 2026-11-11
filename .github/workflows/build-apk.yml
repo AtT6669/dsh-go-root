@@ -31,6 +31,10 @@ on:
         description: versionCode，留空用构建分钟
         type: string
         default: ''
+      update_deb_lock:
+        description: 重新解析 Ubuntu deb 锁（镜像已删掉锁定版本时勾选）
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -142,12 +146,23 @@ jobs:
       - name: Build the runtime bundle
         env:
           RUNTIME_INPUT_STORE_URL: ${{ secrets.RUNTIME_INPUT_STORE_URL }}
+          UPDATE_DEB_LOCK: ${{ inputs.update_deb_lock && '1' || '0' }}
         run: |
           case "${{ inputs.flavor }}" in
             arm64) abi=arm64-v8a ;;
             x64) abi=x86_64 ;;
           esac
           bash runtime/build-runtime.sh "$abi"
+
+      # 重新解析出的锁挂在产物里，便于回填仓库（只在勾选 update_deb_lock 时）。
+      - name: Upload the regenerated deb lock
+        if: inputs.update_deb_lock
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: deb-lock
+          path: runtime/locks/ubuntu-noble-*.json
+          if-no-files-found: error
+          retention-days: 3
 
       # Saved right after the build so a later failure does not throw the downloads away.
       - name: Keep runtime downloads
