@@ -1,14 +1,19 @@
+<div align="center">
+
 # DSH Go · Root 增强版
 
-> [ccch1mneyyy/dsh-go](https://github.com/ccch1mneyyy/dsh-go) 的非官方二开分支：**让 root 用户在 App 里真正能用 root**，并把 [dsh-purge](https://github.com/kingcharleslzy-ai/dsh-purge) 预装进内置运行时。
-> 原版能力（PRoot Ubuntu 环境、模型对话、插件市场、手机控制、遥控电脑等）全部保留，只改 root 相关链路与构建期插件。
+[ccch1mneyyy/dsh-go](https://github.com/ccch1mneyyy/dsh-go) 的非官方二开分支：**让 root 用户在 App 里真正能用 root**，并把 [dsh-purge](https://github.com/kingcharleslzy-ai/dsh-purge) 预装进内置运行时。
 
-<p>
-  <a href="LICENSE"><img alt="许可证 AGPL-3.0" src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-AGPL--3.0-4B67B4?style=flat-square"></a>
-  <img alt="Android 8+" src="https://img.shields.io/badge/Android-8%2B-4B67B4?style=flat-square">
-  <img alt="Root" src="https://img.shields.io/badge/Root-Magisk%20%2F%20KernelSU%20%2F%20APatch-4B67B4?style=flat-square">
-  <a href="https://github.com/ccch1mneyyy/dsh-go"><img alt="上游仓库" src="https://img.shields.io/badge/%E4%B8%8A%E6%B8%B8-ccch1mneyyy%2Fdsh--go-2B3245?style=flat-square"></a>
-</p>
+原版能力（PRoot Ubuntu 环境、模型对话、插件市场、手机控制、遥控电脑等）全部保留，只改 root 相关链路与构建期插件。
+
+<br>
+
+<a href="LICENSE"><img alt="许可证 AGPL-3.0" src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-AGPL--3.0-4B67B4?style=flat-square"></a>
+<img alt="Android 8+" src="https://img.shields.io/badge/Android-8%2B-4B67B4?style=flat-square">
+<img alt="Root" src="https://img.shields.io/badge/Root-Magisk%20%2F%20KernelSU%20%2F%20APatch-4B67B4?style=flat-square">
+<a href="https://github.com/ccch1mneyyy/dsh-go"><img alt="上游仓库" src="https://img.shields.io/badge/%E4%B8%8A%E6%B8%B8-ccch1mneyyy%2Fdsh--go-2B3245?style=flat-square"></a>
+
+</div>
 
 ---
 
@@ -18,10 +23,12 @@
 
 本分支把 root 当成一等公民：**一次授权之后，App 与内置 CLI 的 root 命令静默执行、全部留痕，Agent 也能自动发现并调用**。
 
+---
+
 ## 与原版的差异
 
 | 方面 | 原版 | 本分支 |
-| --- | --- | --- |
+| :--- | :--- | :--- |
 | Root 执行 | 预留通道，能力受限、受环境影响 | **通用执行通道**：任意命令、stdout/stderr、超时、后台运行、按 pid 查询与终止 |
 | 授权模型 | 逐条确认、多次弹窗 | **一次总授权**，设置页可随时撤销 |
 | 留痕 | 无 | 每条命令写入审计日志 `files/root-exec/root-audit.log`（4 MiB 轮转） |
@@ -32,17 +39,21 @@
 
 除上表外的行为与上游一致；本分支不改变包名，所以**不能和官方版共存**。
 
+---
+
 ## 系统要求
 
 - Android 8.0 及以上，arm64 真机（x86_64 模拟器需自行用 `-f x64` 构建）。
 - 内置运行时首次启动会解包（Ubuntu 24.04 + Node + dsh 引擎 + 插件），需要额外存储与几分钟等待，之后才可对话。
 - Root 功能可选：有 Magisk / KernelSU / APatch 并能授予 `su` 时可用；没有 root 也能正常当普通客户端使用。
 
+---
+
 ## 安装
 
 仓库**不提供预编译 APK**，你需要先在一台 x86_64 Linux 上构建（命令见「本地构建」），得到：
 
-```
+```text
 app/build/app/outputs/flutter-apk/app-arm64-release.apk
 ```
 
@@ -57,13 +68,16 @@ adb install -r app-arm64-release.apk
 
 装完后首次启动按引导完成初始化（解包运行时、选择模型与端点、同意必要权限）。
 
-**签名与覆盖安装**
+### 签名与覆盖安装
 
 - 未配置 `app/android/key.properties` 时，构建出的 release 包用**打包机的 debug key** 签名：能装能测，但不能覆盖官方签名版，也不能上架。
 - 包名与官方版相同，**签名不同就无法共存**。手机上已有官方版时，先卸载再装；卸载会清空对话、Linux 环境与设置。
 - 之后升级本分支的新包，只要签名不变就能直接覆盖安装，数据保留。
 
-**卸载**：在系统里正常卸载即可。root 授权、审计日志、运行时数据都在 App 私有目录，会随卸载一起删除。
+> [!NOTE]
+> **卸载**：在系统里正常卸载即可。root 授权、审计日志、运行时数据都在 App 私有目录，会随卸载一起删除。
+
+---
 
 ## 首次使用
 
@@ -71,9 +85,12 @@ adb install -r app-arm64-release.apk
 2. 等待内置运行时解包完成，进入对话界面。
 3. 需要 root 能力时，按下一节做一次授权即可，不做也不影响其他功能。
 
+---
+
 ## Root 增强怎么用
 
-**前置条件**：手机已 root，且 root 管理器允许给本 App `su`。
+> [!IMPORTANT]
+> **前置条件**：手机已 root，且 root 管理器允许给本 App `su`。
 
 1. 打开 **设置 → 能力 → Root 增强**（与「手机控制」同级，不在其子页里）。
 2. 点「一次授权」，在 root 管理器里同意 `su` 请求。
@@ -98,13 +115,15 @@ dsh-root --self-test
 
 `dsh-root` 位于运行时内 `/usr/local/bin/dsh-root`；Agent 通过内置 `dsh-root` 技能调用它，在内置终端里也可以直接敲。
 
-**边界（硬限制，不是建议）**
+### 边界（硬限制，不是建议）
 
 - 前台单条命令默认 20 s、上限 25 s；超时返回退出码 `124`。
 - 后台任务最多 8 个，超出直接报错。
 - 单次输出截断到 256 KiB。
 - 桥接只监听 `127.0.0.1`；请求需带 Bearer 令牌并校验调用方 uid，令牌由引擎环境注入、不落盘。
 - 在设置页撤销授权后，通道立即失效。
+
+---
 
 ## 内置插件 dsh-purge
 
@@ -113,7 +132,10 @@ dsh-root --self-test
 - 校验：构建时从上游 Release / npm 下载，按 `runtime/locks/bundled-plugins.json` 的 sha256 校验后才解包；校验不过构建直接中止。
 - 确认已装：设置 → 插件 能看到；或在 guest 里 `ls /opt/dsh-go/plugins`。
 
+> [!NOTE]
 > 预装发生在 `runtime/build-runtime.sh` 构建运行时阶段，**不是**装完 App 再下载。要换版本就改 `runtime/locks/bundled-plugins.json`（name / version / url / sha256），再重新构建运行时。
+
+---
 
 ## 本地构建（Linux）
 
@@ -148,10 +170,12 @@ bash tooling/build-apk.sh -f arm64
 
 完整的步骤、签名、产物验收与排错见 **[docs/maintenance/local-build.md](docs/maintenance/local-build.md)**。
 
+---
+
 ## 常见问题
 
 | 现象 | 原因与处理 |
-| --- | --- |
+| :--- | :--- |
 | 安装报「应用未安装」/ 签名冲突 | 手机上还有同包名的官方签名版，先卸载官方版再装 |
 | 升级后数据没了 | 两次打包签名不同，系统只能卸载重装；保持同一份 `key.properties` |
 | Root 增强页显示已授权但命令失败 | 先在 root 管理器里确认 App 拿到 `su`；再点自检看 `uid`；仍失败查看审计日志 |
@@ -161,9 +185,11 @@ bash tooling/build-apk.sh -f arm64
 
 审计日志位于 App 私有目录 `files/root-exec/root-audit.log`（读取需要 root）。
 
+---
+
 ## 仓库结构（只列与本分支相关的部分）
 
-```
+```text
 app/                     Flutter 客户端
   android/app/src/main/kotlin/.../phone/background/RootExec*.kt   root 通道与服务端
   android/app/src/main/kotlin/.../root/RootExecServer.kt          loopback HTTP 桥
@@ -178,10 +204,12 @@ tooling/                 构建与检查脚本（setup-toolchain / build-apk / c
 docs/                    设计、维护、使用指南
 ```
 
+---
+
 ## 文档
 
 | 文档 | 内容 |
-| --- | --- |
+| :--- | :--- |
 | [docs/maintenance/local-build.md](docs/maintenance/local-build.md) | 打包：Linux 本地出包、签名、验收与排错 |
 | [docs/guide/zh/13-root.md](docs/guide/zh/13-root.md) | 使用指南：Root 增强一章 |
 | [docs/design/root-exec.md](docs/design/root-exec.md) | 设计：通道拓扑、四个操作、限额与失败语义 |
@@ -189,15 +217,20 @@ docs/                    设计、维护、使用指南
 | [docs/design/bundled-plugins.md](docs/design/bundled-plugins.md) | 设计：构建期预装与锁文件 |
 | [docs/guide/README.md](docs/guide/README.md) | 原版完整使用指南（仍适用） |
 
+---
+
 ## 风险提示
 
-Root 权限意味着任何命令都能改系统分区、框架与数据。本分支的「一次授权 + 审计日志 + 限额」只是降低误操作与滥用概率，**不构成安全保证**：
+> [!WARNING]
+> Root 权限意味着任何命令都能改系统分区、框架与数据。本分支的「一次授权 + 审计日志 + 限额」只是降低误操作与滥用概率，**不构成安全保证**：
 
 - 授权即等于把整台手机的写权限交给 App 及其 Agent；
 - 审计日志只记录、不阻止，泄漏或被清空由你自行负责；
 - 不要在含支付、银行、企业数据的主力机上随手授权。
 
 使用本软件即表示你理解并自担上述风险。
+
+---
 
 ## 与上游的关系
 
