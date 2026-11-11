@@ -75,20 +75,21 @@ python3 -I tooling/check_runtime_bundle.py arm64   # 自检
 - `assets/runtime/base-arm64-v8a.tar.xz`、`engine-arm64-v8a.tar.xz`、`manifest.json`
 - `jniLibs/arm64-v8a/libproot.so`、`libproot-loader.so`、`libtalloc.so`、`libandroid-shmem.so`
 
-这一步会下载 Ubuntu base rootfs、Node、dsh 引擎与 pnpm 锁、内置插件，全部按 `runtime/build-runtime.sh` 顶部的 `PIN` 表校验 sha256；任何一项下载不到或被上游替换都会直接中止。缓存留在 `runtime/.cache/`，失败后重跑不会重复下载。
+这一步会下载 Ubuntu base rootfs、Node、dsh 引擎与 pnpm 锁、内置插件，全部按 `runtime/build-runtime.sh` 顶部的 `PIN` 表校验 sha256。缓存留在 `runtime/.cache/`，失败后重跑不会重复下载。
 
-**上游删档（404）怎么处理**：
+**上游删档（404）已经内建兜底**，不需要你临时改脚本：
+
+- Termux 的 `proot` / `libtalloc` / `libandroid-shmem` 与 proot 的 GPL 源码归档随仓库放在 `runtime/vendor/`，`fetch` 会优先用这里的副本（仍按 PIN 校验 sha256），所以这几个包即使被上游删除、或机器不能访问 `packages.termux.dev`，也照常构建。
+- Ubuntu 的 `tzdata` / `ca-certificates` / `git` 等 27 个 deb 仍按 `runtime/locks/ubuntu-noble-<arch>.json` 下载；构建前会探测锁定的版本是否还在，发现被镜像撤下就**自动**按当前索引（gpgv 验签 + index 哈希）重新解析一次，日志会打印 `锁文件里的 deb 已被镜像删除` 并提示提交改动。
+
+确实想手动前移版本时：
 
 ```sh
-# Ubuntu deb 锁过期
 UPDATE_DEB_LOCK=1 bash runtime/build-runtime.sh arm64-v8a
-git diff runtime/locks/ubuntu-noble-*.json   # 确认版本变化后再提交
-
-# Termux 包（proot / libtalloc / libandroid-shmem）过期
-# 改 runtime/build-runtime.sh 顶部 *_VERSION 与下面 PIN 表里的文件名、sha256；
-# 新哈希从 https://packages.termux.dev/apt/termux-main/dists/stable/main/binary-<arch>/Packages 取，
-# 或下载 deb 后自己 sha256sum 核对。
+git diff runtime/locks/ubuntu-noble-*.json   # 确认版本变化，连同产物一起提交
 ```
+
+Termux 组件要升级时（不常见）：改 `PROOT_VERSION` / `TALLOC_VERSION` / `SHMEM_VERSION`，把新 deb 与源码 zip 放进 `runtime/vendor/`，同步 `PIN` 表，参考 [runtime/vendor/README.md](../../runtime/vendor/README.md)。
 
 ## 5. 打包
 
@@ -153,11 +154,12 @@ unzip -l "$apk" | grep -E 'assets/runtime|lib/arm64-v8a/libproot' | head
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
 | `flutter: command not found` | 没进工具链环境 | `source tooling/env.sh` |
-| 下载 404（`*.deb`） | 上游镜像删了锁定版本 | 见第 4 节 `UPDATE_DEB_LOCK=1` / 改 Termux 版本与 PIN |
+| 下载 404（`*.deb`） | 上游镜像删了锁定版本 | Termux 包走 `runtime/vendor/` 无需网络；Ubuntu 包会自动重解析（见第 4 节），仍失败才用 `UPDATE_DEB_LOCK=1` |
+| `vendored input ... does not match its pin` | `runtime/vendor/` 里的文件被改动或版本不同步 | 重新下载该文件并核对 `PIN` 表，或直接删掉该 vendor 文件走网络 |
+| Gradle 依赖下载失败 | 代理只配了 curl 环境 | `build-apk.sh` 会把 `HTTPS_PROXY`/`ALL_PROXY` 传给 Gradle，确认变量是在打包的 shell 里导出的 |
 | `sha256 mismatch` | 锁文件与实际产物不一致 | 下载该文件 `sha256sum` 后改 `runtime/locks/*`（或 PIN 表） |
 | `missing runtime file` | 没建 runtime / ABI 不匹配 | 先跑第 4 步，确认 `runtime/out/arm64-v8a` |
 | `l10n` 相关编译错 | 生成文件过期 | 重跑 `python3 app/tool/l10n_merge.py` |
-| Gradle 依赖下载失败 | 网络 | 复用同一代理环境重跑；`--keep-daemon` 便于观察 |
 | `versionCode` 冲突/降级 | 装的包号更大 | `--build-number` 指定更大的值，或先卸载 |
 | 编译报 Kotlin / Dart 错误 | 源码问题 | 贴完整日志，这类才是代码缺陷 |
 | WSL 下极慢或权限错 | `/mnt/c` 的 9p 文件系统 | 在 `~/` 下重新 clone 后构建 |

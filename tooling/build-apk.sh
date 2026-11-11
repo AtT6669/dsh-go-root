@@ -135,6 +135,17 @@ if ! command -v flutter >/dev/null 2>&1; then
   command -v flutter >/dev/null 2>&1 || die "flutter is not on PATH"
 fi
 
+# Gradle does not read HTTP(S)_PROXY, so a shell that is proxied for curl would still download
+# dependencies directly. Forward the proxy to Gradle's daemon.
+proxy_url=${HTTPS_PROXY:-${https_proxy:-${ALL_PROXY:-${all_proxy:-}}}}
+if [[ -n $proxy_url ]]; then
+  proxy_url=${proxy_url#*://}; proxy_url=${proxy_url##*@}
+  proxy_host=${proxy_url%%:*}; proxy_port=${proxy_url##*:}
+  [[ $proxy_port == "$proxy_url" ]] && proxy_port=8080
+  export GRADLE_OPTS="${GRADLE_OPTS:-} -Dhttp.proxyHost=$proxy_host -Dhttp.proxyPort=$proxy_port -Dhttps.proxyHost=$proxy_host -Dhttps.proxyPort=$proxy_port"
+  echo "build-apk: Gradle 走代理 $proxy_host:$proxy_port"
+fi
+
 stop_daemon() {
   ((keep_daemon)) && return 0
   (cd "$APP/android" && ./gradlew --stop -q >/dev/null 2>&1) || true

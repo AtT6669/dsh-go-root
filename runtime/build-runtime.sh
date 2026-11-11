@@ -32,6 +32,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHE="$HERE/.cache"
+VENDOR="$HERE/vendor"      # checked-in copies of inputs upstream mirrors are free to delete
 WORK="$HERE/.work"
 OUT="${RUNTIME_OUT:-$HERE/out}"   # the app build reads runtime/out; RUNTIME_OUT stages a build elsewhere
 RUNTIME_LAYERS="${RUNTIME_LAYERS:-0}"  # opt in until Android/host validation completes
@@ -105,12 +106,24 @@ case "$RUNTIME_INPUT_STORE_URL" in
   *) die "RUNTIME_INPUT_STORE_URL must be an HTTPS or absolute file:// URL" ;;
 esac
 
-# fetch URL DEST [expected-sha256] [fallback-url]: verified cache, origin, then retained bytes.
+# fetch URL DEST [expected-sha256] [fallback-url]: verified cache, vendored copy, origin, retained bytes.
 fetch() {
   local url="$1" dest="$2" want="${3:-}"
   mkdir -p "$(dirname "$dest")" || die "cannot create download directory for $dest"
   if [[ -f "$dest" && -n "$want" && "$(sha256 "$dest")" == "$want" ]]; then return 0; fi
   if [[ -f "$dest" && -z "$want" ]]; then return 0; fi
+  # runtime/vendor holds the inputs whose upstream URLs disappear (Termux pool, termux/proot
+  # source archive). They are pinned, so a local copy beats any mirror and keeps offline builds.
+  local vendor got
+  vendor="$VENDOR/$(basename "$dest")"
+  if [[ -n "$want" && -f "$vendor" ]]; then
+    log "vendor $(basename "$dest")"
+    cp "$vendor" "$dest.part" || die "cannot copy vendored input $vendor"
+    got="$(sha256 "$dest.part")" || { rm -f "$dest.part"; die "cannot checksum $vendor"; }
+    [[ "$got" == "$want" ]] || { rm -f "$dest.part"; die "vendored input $vendor does not match its pin: got $got want $want"; }
+    mv "$dest.part" "$dest" || { rm -f "$dest.part"; die "cannot publish vendored input $dest"; }
+    return 0
+  fi
   # Handle transport failure here: callers include command substitutions, where
   # errexit is disabled, and a conditional fetch call would disable it too.
   local candidate fetched=0 retained=""
@@ -132,7 +145,7 @@ fetch() {
     die "download failed for $dest"
   fi
   if [[ -n "$want" ]]; then
-    local got; got="$(sha256 "$dest.part")" || { rm -f "$dest.part"; die "cannot checksum download $dest"; }
+    got="$(sha256 "$dest.part")" || { rm -f "$dest.part"; die "cannot checksum download $dest"; }
     [[ "$got" == "$want" ]] || { rm -f "$dest.part"; die "sha256 mismatch for $dest: got $got want $want"; }
   fi
   mv "$dest.part" "$dest" || { rm -f "$dest.part"; die "cannot publish download $dest"; }
@@ -196,15 +209,12 @@ termux_deb() {  # $1 = package, $2 = version, $3 = termux arch; echoes path
 # Chain of trust: InRelease of noble / noble-updates / noble-security verified with gpgv against
 # ubuntu-archive-keyring.gpg from the checksum-verified Ubuntu Base tarball -> Packages.xz hash
 # -> each .deb hash. The resolved set is pinned in runtime/locks/ubuntu-noble-<arch>.json
-# (re-resolve with UPDATE_DEB_LOCK=1).
-ubuntu_extra_debs() {  # $1 = ubuntu arch, $2 = verified base tarball; echoes deb paths, one per line
-  local arch="$1" base="$2" lock="$LOCKS/ubuntu-noble-$1.json" mirror
-  [[ "$arch" == amd64 ]] && mirror="$UBUNTU_ARCHIVE_AMD64" || mirror="$UBUNTU_ARCHIVE_ARM64"
-  if [[ ! -f "$lock" || "${UPDATE_DEB_LOCK:-0}" == 1 ]] || \
-     ! python3 -I -c 'import json,sys; sys.exit(json.load(open(sys.argv[1]))["want"] != sys.argv[2].split())' "$lock" "$UBUNTU_EXTRA"; then
-    command -v gpgv >/dev/null || die "gpgv is required to resolve Ubuntu packages"
-    local dir="$CACHE/ubuntu/dists-$arch"; rm -rf "$dir"; mkdir -p "$dir"
-    python3 -I - "$base" "$dir/archive-keyring.gpg" <<'PYEOF'
+# (re-resolve with UPDATE_DEB_LOCK=1, or automatically when the mirror drops a pinned deb).
+resolve_deb_lock() {  # $1 = ubuntu arch, $2 = verified base tarball, $3 = archive mirror, $4 = lock
+  local arch="$1" base="$2" mirror="$3" lock="$4"
+  command -v gpgv >/dev/null || die "gpgv is required to resolve Ubuntu packages"
+  local dir="$CACHE/ubuntu/dists-$arch"; rm -rf "$dir"; mkdir -p "$dir"
+  python3 -I - "$base" "$dir/archive-keyring.gpg" <<'PYEOF'
 import sys, tarfile
 with tarfile.open(sys.argv[1], "r:gz") as t:
     for m in t:
@@ -213,19 +223,47 @@ with tarfile.open(sys.argv[1], "r:gz") as t:
     else:
         sys.exit("keyring not found in base tarball")
 PYEOF
-    local -a idx=() ; local suite want
-    for suite in noble noble-updates noble-security; do
-      fetch "$mirror/dists/$suite/InRelease" "$dir/$suite.InRelease"
-      gpgv --keyring "$dir/archive-keyring.gpg" "$dir/$suite.InRelease" 2>/dev/null \
-        || die "InRelease signature check failed for $suite"
-      want="$(awk -v f="main/binary-$arch/Packages.xz" '/^SHA256:/{s=1;next} /^[A-Za-z]/{s=0} s && $3==f {print $1}' "$dir/$suite.InRelease")"
-      [[ -n "$want" ]] || die "no Packages.xz hash for $suite/$arch"
-      fetch "$mirror/dists/$suite/main/binary-$arch/Packages.xz" "$dir/$suite.Packages.xz" "$want"
-      idx+=(--packages "$dir/$suite.Packages.xz")
-    done
-    mkdir -p "$LOCKS"
-    # shellcheck disable=SC2086
-    "${PY[@]}" resolve-debs --base "$base" --arch "$arch" "${idx[@]}" --want $UBUNTU_EXTRA --out "$lock" >&2
+  local -a idx=() ; local suite want
+  for suite in noble noble-updates noble-security; do
+    fetch "$mirror/dists/$suite/InRelease" "$dir/$suite.InRelease"
+    gpgv --keyring "$dir/archive-keyring.gpg" "$dir/$suite.InRelease" 2>/dev/null \
+      || die "InRelease signature check failed for $suite"
+    want="$(awk -v f="main/binary-$arch/Packages.xz" '/^SHA256:/{s=1;next} /^[A-Za-z]/{s=0} s && $3==f {print $1}' "$dir/$suite.InRelease")"
+    [[ -n "$want" ]] || die "no Packages.xz hash for $suite/$arch"
+    fetch "$mirror/dists/$suite/main/binary-$arch/Packages.xz" "$dir/$suite.Packages.xz" "$want"
+    idx+=(--packages "$dir/$suite.Packages.xz")
+  done
+  mkdir -p "$LOCKS"
+  # shellcheck disable=SC2086
+  "${PY[@]}" resolve-debs --base "$base" --arch "$arch" "${idx[@]}" --want $UBUNTU_EXTRA --out "$lock" >&2
+}
+
+# The Ubuntu pool only keeps the current version of a package, so a locked deb can vanish
+# after the fact. Probe (HEAD) what is neither cached nor reachable and let the caller
+# re-resolve instead of failing the build.
+locked_debs_present() {  # $1 = archive mirror, $2 = lock
+  local file sum cached
+  while read -r file sum; do
+    cached="$CACHE/ubuntu/debs/$(basename "$file")"
+    if [[ -f "$cached" && "$(sha256 "$cached")" == "$sum" ]]; then continue; fi
+    if curl -fsIL --connect-timeout 15 --max-time 30 -o /dev/null "$1/$file" 2>/dev/null; then continue; fi
+    if curl -fsIL --connect-timeout 15 --max-time 30 -o /dev/null "$UBUNTU_DEB_FALLBACK/$(basename "$file")" 2>/dev/null; then continue; fi
+    log "上游已撤下：$(basename "$file")"
+    return 1
+  done < <(python3 -I -c 'import json,sys
+for p in json.load(open(sys.argv[1]))["packages"]: print(p["filename"], p["sha256"])' "$2")
+  return 0
+}
+
+ubuntu_extra_debs() {  # $1 = ubuntu arch, $2 = verified base tarball; echoes deb paths, one per line
+  local arch="$1" base="$2" lock="$LOCKS/ubuntu-noble-$1.json" mirror
+  [[ "$arch" == amd64 ]] && mirror="$UBUNTU_ARCHIVE_AMD64" || mirror="$UBUNTU_ARCHIVE_ARM64"
+  if [[ ! -f "$lock" || "${UPDATE_DEB_LOCK:-0}" == 1 ]] || \
+     ! python3 -I -c 'import json,sys; sys.exit(json.load(open(sys.argv[1]))["want"] != sys.argv[2].split())' "$lock" "$UBUNTU_EXTRA"; then
+    resolve_deb_lock "$arch" "$base" "$mirror" "$lock"
+  elif ! locked_debs_present "$mirror" "$lock"; then
+    log "锁文件里的 deb 已被镜像删除：按当前索引重新解析 $lock（版本前移，记得提交该文件）"
+    resolve_deb_lock "$arch" "$base" "$mirror" "$lock"
   fi
   local name file sum
   # pipefail must carry lock-reader errors to the caller, including after output.

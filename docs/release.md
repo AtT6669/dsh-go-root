@@ -92,7 +92,7 @@ adb install -r app/build/app/outputs/flutter-apk/app-arm64-release.apk
 - **签名**：没有 `app/android/key.properties` 时，release 用打包机的 debug key 签名，能装能跑；手机上若已装官方签名的版本，系统会拒绝覆盖安装，需先卸载（会清数据）。要直接覆盖官方版本，在 `app/android/key.properties` 里配置 `storeFile`、`storePassword`、`keyAlias`、`keyPassword` 后重新打包。
 - **为什么必须先构建运行时**：release 打包前 `tooling/check_runtime_bundle.py` 会校验 `runtime/out/<abi>`（`libproot.so` 等四个 JNI 库 + manifest 里的 size/sha256），这些文件只能由 `runtime/build-runtime.sh` 在 x86_64 Linux 上产出；没有它们 APK 里就没有 PRoot、Ubuntu 根文件系统、Node 和引擎。`--debug` 跳过该校验，只适合调界面。
 - **文案**：`app/lib/l10n/gen/` 是构建输入，必须先用 `l10n_merge.py` 生成；否则 Dart 侧引用不到新键。
-- **上游固定义项会过期**：Ubuntu 镜像与 Termux 源只保留当前版本，旧 deb 会被删掉（表现为下载 404）。用 `UPDATE_DEB_LOCK=1 bash runtime/build-runtime.sh arm64-v8a` 重新解析 `runtime/locks/ubuntu-noble-*.json`；Termux 的 proot / libtalloc / libandroid-shmem 版本在 `runtime/build-runtime.sh` 顶部与 `PIN` 表里，需一并更新版本号和 sha256。
+- **上游固定义项会过期，已内建兜底**：Ubuntu 镜像与 Termux 源只保留当前版本，旧 deb 会被删掉（表现为下载 404）。Termux 的 `proot` / `libtalloc` / `libandroid-shmem` 与 proot 源码归档随仓库放在 `runtime/vendor/`，不依赖网络；Ubuntu 的 27 个 deb 在构建前会被探测，被镜像撤下时自动按当前索引重新解析 `runtime/locks/ubuntu-noble-*.json`（日志会提示提交该改动），也可以手动 `UPDATE_DEB_LOCK=1 bash runtime/build-runtime.sh arm64-v8a`。
 
 ## 发版步骤
 

@@ -105,10 +105,11 @@ bash tooling/build-apk.sh -f arm64
 
 产物在 `app/build/app/outputs/flutter-apk/app-arm64-release.apk`，脚本会用 aapt2 回读 versionName / versionCode 核对。
 
-三个常见坑：
+几个常见坑：
 
 - 第 3 步只能在 Linux 上跑；`runtime/out/<abi>` 不存在时，release 打包会被 `tooling/check_runtime_bundle.py` 直接拒绝（`--debug` 会跳过校验，但装上也用不了 root 与内置插件）。
-- deb 锁过期（镜像删掉旧版本 → 下载 404）时，用 `UPDATE_DEB_LOCK=1 bash runtime/build-runtime.sh arm64-v8a` 重新解析，并把 `runtime/locks/ubuntu-noble-*.json` 的改动提交。
+- 上游删档已内建兜底：Termux 的 `proot` 等组件随仓库放在 `runtime/vendor/`（离线可用、仍按 sha256 校验），Ubuntu 的 deb 锁被镜像撤下时会自动按当前索引重解析并提示提交 `runtime/locks/` 的变动。
+- 配了代理的话 `build-apk.sh` 会把 `HTTPS_PROXY` 转给 Gradle，不需要额外改 `gradle.properties`。
 - 中途失败可以直接重跑，已下载的输入缓存在 `runtime/.cache/`。
 
 完整的步骤、签名、校验与排错见 **[docs/maintenance/local-build.md](docs/maintenance/local-build.md)**。
