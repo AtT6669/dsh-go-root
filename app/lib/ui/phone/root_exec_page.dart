@@ -48,7 +48,7 @@ class _RootExecPageState extends ConsumerState<RootExecPage> {
   bool _operationRevoke = false;
   bool _auditFailed = false;
   List<PhoneRootExecAuditEntry> _audit = const [];
-  PhoneRootExecSelfTest? _selfTest;
+  PhoneRootExecSelfTest? _selfTestResult;
 
   @override
   void initState() {
@@ -93,7 +93,7 @@ class _RootExecPageState extends ConsumerState<RootExecPage> {
       _authorizing = true;
       _operationError = null;
       _operationRevoke = false;
-      _selfTest = null;
+      _selfTestResult = null;
     });
     final status = await ref.read(phoneProvider.notifier).authorizeRootExec();
     if (!mounted) return;
@@ -127,7 +127,7 @@ class _RootExecPageState extends ConsumerState<RootExecPage> {
       _revoking = true;
       _operationError = null;
       _operationRevoke = true;
-      _selfTest = null;
+      _selfTestResult = null;
     });
     final status = await ref.read(phoneProvider.notifier).revokeRootExec();
     if (!mounted) return;
@@ -147,14 +147,14 @@ class _RootExecPageState extends ConsumerState<RootExecPage> {
   Future<void> _selfTest() async {
     setState(() {
       _selfTesting = true;
-      _selfTest = null;
+      _selfTestResult = null;
       _operationError = null;
     });
     final result = await ref.read(phoneProvider.notifier).rootExecSelfTest();
     if (!mounted) return;
     setState(() {
       _selfTesting = false;
-      _selfTest = result;
+      _selfTestResult = result;
     });
     unawaited(_loadAudit());
   }
@@ -380,7 +380,7 @@ class _RootExecPageState extends ConsumerState<RootExecPage> {
 
   PhoneNote? _selfTestNote(L10n l10n) {
     if (_selfTesting) return PhoneNote(key: const ValueKey('root-exec-self-test-running'), text: l10n.phoneRootExecSelfTestRunning);
-    final result = _selfTest;
+    final result = _selfTestResult;
     if (result == null) return null;
     if (result.ok) {
       return PhoneNote(key: const ValueKey('root-exec-self-test-ok'), text: l10n.phoneRootExecSelfTestOk);
