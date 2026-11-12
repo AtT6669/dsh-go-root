@@ -55,6 +55,17 @@ internal object RootExecOps {
     const val KILLED = "killed"
 }
 
+// java.lang.Process.pid() is Java 9+ and not in Android's public SDK, so read
+// the private pid field of the concrete UNIXProcess via reflection. Top-level so
+// both RootExecCore and its nested Job class can call it.
+private fun Process.pidCompat(): Int = try {
+    val f = javaClass.getDeclaredField("pid")
+    f.isAccessible = true
+    f.getInt(this)
+} catch (_: Throwable) {
+    -1
+}
+
 /**
  * Runs on the root peer only. Every call starts from an inherited environment plus the request's
  * overrides: nothing here is a sandbox, the authorization boundary is the caller's (see
@@ -232,16 +243,6 @@ internal class RootExecCore {
         else -> request.getString(RootExecOps.ID)?.let { id ->
             detached.values.firstOrNull { it.log.nameWithoutExtension == id }
         }
-    }
-
-    // java.lang.Process.pid() is Java 9+ and not in Android's public SDK, so read
-    // the private pid field of the concrete UNIXProcess via reflection.
-    private fun Process.pidCompat(): Int = try {
-        val f = javaClass.getDeclaredField("pid")
-        f.isAccessible = true
-        f.getInt(this)
-    } catch (_: Throwable) {
-        -1
     }
 
     /** Finished jobs keep their log on disk; only the in-memory window is bounded. */
