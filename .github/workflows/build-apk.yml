@@ -1,0 +1,130 @@
+# Manual APK build on GitHub's Ubuntu runner.
+#
+# Why this exists: the full runtime + APK build needs far more RAM and disk than
+# a small cloud server can spare (Flutter, Gradle daemon, Ubuntu rootfs, the
+# patched DSH engine, xz compression). A GitHub-hosted runner has 7 GB RAM and
+# ~14 GB disk, which is enough.
+#
+#   gh workflow run build-apk.yml -f flavor=arm64
+#
+# Output: a debug-signed release APK uploaded as a run artifact. It installs for
+# testing but cannot coexist with an officially-signed dsh-go build (same package
+# name). The versionCode is the build minute (tooling/build_number.py), so a
+# later build installs over an earlier one.
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'Target ABI flavor'
+        type: choice
+        options: [arm64, x64, all]
+        default: arm64
+      build_name:
+        description: 'versionName override (e.g. 1.0.15); blank = app/pubspec.yaml'
+        type: string
+        default: ''
+      build_number:
+        description: 'versionCode override; blank = build minute'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.47.7
+  GRADLE_VERSION: 9.3.1
+  # Aliyun Maven mirrors are slow and unreliable from a US runner.
+  DSH_MAVEN_MIRRORS: '0'
+  PUB_HOSTED_URL: https://pub.flutter-io.cn
+  FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    name: APK ${{ inputs.flavor }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Accept Android SDK licenses and install build tools
+        run: |
+          yes | flutter doctor --android-licenses >/dev/null || true
+          flutter config --no-analytics
+          flutter precache --android
+
+      - name: Restore runtime download cache
+        id: runtime-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: runtime/.cache
+          key: runtime-cache-${{ runner.os }}-${{ hashFiles('runtime/build-runtime.sh', 'runtime/locks/**', 'runtime/patches/pins.json') }}
+
+      - name: Build the runtime bundle
+        run: |
+          abi_for() {
+            case "$1" in
+              arm64) echo arm64-v8a ;;
+              x64)   echo x86_64 ;;
+            esac
+          }
+          case "${{ inputs.flavor }}" in
+            all) bash runtime/build-runtime.sh ;;
+            *)   bash runtime/build-runtime.sh "$(abi_for "${{ inputs.flavor }}")" ;;
+          esac
+
+      - name: Save runtime download cache
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: runtime/.cache
+          key: ${{ steps.runtime-cache.outputs.cache-primary-key }}
+
+      - name: Generate localizations and local.properties
+        run: |
+          python3 app/tool/l10n_merge.py
+          printf 'sdk.dir=%s\nflutter.sdk=%s\n' "$ANDROID_HOME" "$FLUTTER_ROOT" > app/android/local.properties
+
+      - name: Build the APK
+        run: |
+          args=(-f "${{ inputs.flavor }}")
+          [[ -n "${{ inputs.build_name }}" ]] && args+=(--build-name "${{ inputs.build_name }}")
+          [[ -n "${{ inputs.build_number }}" ]] && args+=(--build-number "${{ inputs.build_number }}")
+          bash tooling/build-apk.sh "${args[@]}"
+
+      - name: Compute APK checksums
+        run: |
+          cd app/build/app/outputs/flutter-apk
+          sha256sum *.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dsh-go-apk-${{ inputs.flavor }}
+          path: app/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+          retention-days: 30
