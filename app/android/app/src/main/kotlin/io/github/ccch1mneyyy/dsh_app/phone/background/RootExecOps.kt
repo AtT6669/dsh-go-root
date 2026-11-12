@@ -144,7 +144,7 @@ internal class RootExecCore {
         val accepted = synchronized(lock) {
             pruneLocked()
             val running = detached.values.count { it.exit == null }
-            if (running >= RootExecOps.MAX_DETACHED) false else { detached[process.pid()] = job; true }
+            if (running >= RootExecOps.MAX_DETACHED) false else { detached[process.pidCompat()] = job; true }
         }
         if (!accepted) {
             runCatching { process.destroyForcibly() }
@@ -156,7 +156,7 @@ internal class RootExecCore {
         }
         return Bundle().apply {
             putBoolean(Proto.OK, true)
-            putInt(RootExecOps.PID, process.pid())
+            putInt(RootExecOps.PID, process.pidCompat())
             putString(RootExecOps.ID, log.nameWithoutExtension)
             putString(RootExecOps.LOG_PATH, log.absolutePath)
             putLong(RootExecOps.STARTED_AT_MS, job.startedAtMs)
@@ -234,6 +234,16 @@ internal class RootExecCore {
         }
     }
 
+    // java.lang.Process.pid() is Java 9+ and not in Android's public SDK, so read
+    // the private pid field of the concrete UNIXProcess via reflection.
+    private fun Process.pidCompat(): Int = try {
+        val f = javaClass.getDeclaredField("pid")
+        f.isAccessible = true
+        f.getInt(this)
+    } catch (_: Throwable) {
+        -1
+    }
+
     /** Finished jobs keep their log on disk; only the in-memory window is bounded. */
     private fun pruneLocked() {
         if (detached.size < RootExecOps.MAX_DETACHED) return
@@ -266,7 +276,7 @@ internal class RootExecCore {
         @Volatile var exit: Int? = null,
         @Volatile var endedAtMs: Long = 0,
     ) {
-        val pid: Int get() = process.pid()
+        val pid: Int get() = process.pidCompat()
     }
 
     /** Keeps the first [RootExecOps.STREAM_LIMIT] bytes and drains the rest so the peer never blocks. */
