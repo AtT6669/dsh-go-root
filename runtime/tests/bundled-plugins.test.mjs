@@ -60,7 +60,7 @@ test('lock has complete entries for dsh-purge and its yaml dependency', () => {
   assert.equal(purge.package, 'dsh-purge-community');
   assert.equal(purge.version, '1.6.91');
   assert.equal(purge.license, 'MIT');
-  assert.equal(purge.sha256, 'ae22bb7d1ac1e055102c8fbd24ef2eedc282a94bfa3fb09e7ab91226fc033058');
+  assert.equal(purge.sha256, 'ae22bb7d1ac1e055102c8fbd24cf2eedc282a94bfa3fb09e7ab91226fc033058');
   assert.match(purge.url, /^https:\/\/github\.com\/kingcharleslzy-ai\/dsh-purge\/releases\/download\/v1\.6\.91\//);
   const yaml = byName.get('yaml');
   assert.ok(yaml, 'yaml is in the lock');

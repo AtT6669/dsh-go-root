@@ -300,7 +300,7 @@ class _RootExecPageState extends ConsumerState<RootExecPage> {
             ],
           ),
         ),
-        if (_selfTestNote(l10n) case final note?) note,
+        ?_selfTestNote(l10n),
         ListPageCard(
           margin: _margin,
           title: l10n.phoneRootExecAuditTitle,

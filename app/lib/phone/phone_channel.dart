@@ -1786,8 +1786,8 @@ class PhoneRootExecChannel {
     try {
       final map = await _methods.invokeMapMethod<Object?, Object?>('exec', {
         'command': command,
-        if (cwd != null) 'cwd': cwd,
-        if (timeoutMs != null) 'timeoutMs': timeoutMs,
+        'cwd': ?cwd,
+        'timeoutMs': ?timeoutMs,
         if (env != null && env.isNotEmpty) 'env': env,
       });
       return map == null ? PhoneRootExecResult(reason: phoneNotReadyReason) : PhoneRootExecResult.fromMap(map);

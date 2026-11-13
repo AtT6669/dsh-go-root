@@ -1,7 +1,6 @@
 // Root 增强: the `privileged.exec` projection and the `dsh/root` maps parse
 // without a native side, and anything missing falls back to safe defaults.
 
-import 'package:dsh_app/phone/phone_channel.dart';
 import 'package:dsh_app/state/phone_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 

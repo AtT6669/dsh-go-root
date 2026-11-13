@@ -16,7 +16,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
 ABIS = {"arm64": "arm64-v8a", "x64": "x86_64"}
-JNI = ("libproot.so", "libproot-loader.so", "libtalloc.so", "libandroid-shmem.so")
+JNI = ("libproot.so", "libproot-loader.so", "libtalloc.so", "libandroid-shmem.so",
+       "libdshroot-init.so")
 
 
 class BuildApkRuntimeTest(unittest.TestCase):

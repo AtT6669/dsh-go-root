@@ -341,7 +341,7 @@ internal class RootNativeCore(private val context: Context) {
     /** The helper writes `<rootfs>/tmp/root-init.err` before it exits; its step names the code. */
     private fun helperFailure(code: Int, rootfs: File): String {
         val detail = File(rootfs, "tmp/root-init.err")
-            .takeIf { it.isFile }?.let { runCatching { it.readText() }.getOrNull().orEmpty() }
+            .takeIf { it.isFile }?.let { runCatching { it.readText() }.getOrNull() }.orEmpty()
         return when {
             detail.contains("step=mount") || detail.contains("step=proc") || detail.contains("step=sysfs") -> "mountFailed"
             detail.contains("step=chroot") || detail.contains("step=chdir") -> "chrootFailed"
