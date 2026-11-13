@@ -20,7 +20,7 @@
 #     or base-<abi>.tar.xz + engine-<abi>.tar.xz when RUNTIME_LAYERS=1
 #   runtime/out/<abi>/assets/runtime/manifest.json      (versions, hashes, launch template)
 #   runtime/out/<abi>/assets/runtime/licenses/...
-#   runtime/out/<abi>/jniLibs/<abi>/lib{proot,proot-loader,talloc,android-shmem}.so
+#   runtime/out/<abi>/jniLibs/<abi>/lib{proot,proot-loader,talloc,android-shmem,dshroot-init}.so
 #   runtime/out/<abi>/build-report.json                  (ELF audit, pruned files, warnings)
 #   runtime/out/manifest.json                            (index of all built ABIs)
 #
@@ -39,6 +39,21 @@ RUNTIME_LAYERS="${RUNTIME_LAYERS:-0}"  # opt in until Android/host validation co
 BASE_LAYER_CACHE="${BASE_LAYER_CACHE:-$CACHE/base-layers}"
 LOCKS="$HERE/locks"
 PY=(python3 -I "$HERE/lib/rtbuild.py")
+ROOTINIT_SRC="$(cd "$HERE/.." && pwd)/tooling/rootinit/dsh_root_init.c"
+
+# Android NDK, needed to build the chroot helper (real root mode). setup-toolchain.sh
+# installs it under $ANDROID_HOME/ndk/<version>.
+ndk_root() {
+  local candidate
+  for candidate in "${ANDROID_NDK_HOME:-}" "${NDK_HOME:-}"; do
+    [[ -n "$candidate" && -d "$candidate/toolchains/llvm" ]] && { printf '%s\n' "$candidate"; return 0; }
+  done
+  local sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+  [[ -n "$sdk" && -d "$sdk/ndk" ]] || return 1
+  candidate="$(ls -1 "$sdk/ndk" 2>/dev/null | sort -V | tail -1)"
+  [[ -n "$candidate" && -d "$sdk/ndk/$candidate/toolchains/llvm" ]] || return 1
+  printf '%s\n' "$sdk/ndk/$candidate"
+}
 
 # ---- pinned inputs (override via environment; pinned hashes then must be updated too) ----
 RUNTIME_REVISION="${RUNTIME_REVISION:-r15}"  # r14 + per-family DNS under PRoot, input recovery, session deletion and upload resolver fixes, title and boot cache work; DSH as r12
@@ -467,6 +482,24 @@ build_abi() {
   # APKs can only carry lib*.so, so the DT_NEEDED/SONAME "libtalloc.so.2" becomes "libtalloc.so".
   "${PY[@]}" patch-dynstr "$jni/libproot.so" libtalloc.so.2 libtalloc.so >&2
   "${PY[@]}" patch-dynstr "$jni/libtalloc.so" libtalloc.so.2 libtalloc.so >&2
+
+  # -- real root backend: tiny chroot helper (unshare + mounts + chroot + exec) --
+  local ndk host_tag cc_triple cc
+  ndk="$(ndk_root)" || die "找不到 Android NDK：先运行 tooling/setup-toolchain.sh，或设置 ANDROID_NDK_HOME"
+  case "$(uname -s)" in
+    Linux) host_tag=linux-x86_64 ;;
+    Darwin) host_tag=darwin-x86_64 ;;
+    *) die "unsupported host $(uname -s) for the NDK toolchain" ;;
+  esac
+  case "$abi" in
+    arm64-v8a) cc_triple=aarch64-linux-android ;;
+    x86_64)    cc_triple=x86_64-linux-android ;;
+  esac
+  cc="$ndk/toolchains/llvm/prebuilt/$host_tag/bin/${cc_triple}24-clang"
+  [[ -x "$cc" ]] || die "missing NDK clang: $cc"
+  log "building libdshroot-init.so ($abi)"
+  "$cc" -O2 -Wall -Wextra -static -o "$jni/libdshroot-init.so" "$ROOTINIT_SRC"
+
   chmod 0755 "$jni"/*.so
   "${PY[@]}" elf-info "$jni"/*.so > "$work/jni-elf.json"
 
@@ -495,6 +528,20 @@ for name, (pkg, ver, deb, inner, patch, orig) in src.items():
         "soname": e.get("soname"), "minLoadAlign": e["minLoadAlign"],
     }
 json.dump(res, open(out, "w"), indent=2)
+PYEOF
+  # the chroot helper is our own code, not a repackaged Termux binary
+  python3 -I - "$jni/libdshroot-init.so" "$work/jnilibs.json" <<'PYEOF'
+import hashlib, json, os, sys
+path, out = sys.argv[1:3]
+record = json.load(open(out))
+record["libdshroot-init.so"] = {
+    "sha256": hashlib.sha256(open(path, "rb").read()).hexdigest(),
+    "bytes": os.path.getsize(path),
+    "source": "tooling/rootinit/dsh_root_init.c (NDK clang, static)",
+    "patch": None,
+    "originalSha256": None,
+}
+json.dump(record, open(out, "w"), indent=2)
 PYEOF
   # licenses for the native bits
   python3 -I - "$proot_src" "$assets/licenses/proot-COPYING.txt" <<'PYEOF'
@@ -593,11 +640,14 @@ for abi in ("x86_64", "arm64-v8a"):
     index["abis"][abi] = {k: m.get(k) for k in (  # .get: another ABI may still hold an older build
         "runtimeVersion", "rootfs", "rootfsSha256", "rootfsBytes", "uncompressedBytes", "entries",
         "dshVersion", "nodeVersion", "pnpmVersion", "ubuntuVersion", "prootVersion")}
-    if m.get("schema", 1) == 2:
-        index["schema"] = 2
-        for key in ("rootfs", "rootfsSha256"):
-            del index["abis"][abi][key]
-        index["abis"][abi].update({key: m[key] for key in ("schema", "layers", "baseCompatibility", "upgrade")})
+    sch = m.get("schema", 1)
+    if sch >= 2:
+        index["schema"] = max(index["schema"], sch)
+        if "layers" in m:
+            for key in ("rootfs", "rootfsSha256"):
+                index["abis"][abi].pop(key, None)
+        index["abis"][abi].update({key: m[key] for key in (
+            "schema", "layers", "baseCompatibility", "upgrade") if key in m})
     index["abis"][abi]["jniLibs"] = {n: {"sha256": v["sha256"], "bytes": v["bytes"]} for n, v in m["jniLibs"].items()}
 json.dump(index, open(os.path.join(out, "manifest.json"), "w"), indent=2)
 print("wrote " + os.path.join(out, "manifest.json"))

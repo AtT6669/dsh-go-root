@@ -14,7 +14,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 ABIS = {"arm64": "arm64-v8a", "x64": "x86_64"}
-REQUIRED_JNI = ("libproot.so", "libproot-loader.so", "libtalloc.so", "libandroid-shmem.so")
+REQUIRED_JNI = ("libproot.so", "libproot-loader.so", "libtalloc.so", "libandroid-shmem.so",
+                "libdshroot-init.so")
 
 
 def check_file(path, size, digest):
@@ -46,20 +47,35 @@ def check_bundle(flavor):
     if not isinstance(manifest, dict) or manifest.get("abi") != abi:
         raise ValueError(f"{manifest_path}: expected ABI {abi}")
     schema = manifest.get("schema", 1)
-    if type(schema) is not int or schema not in (1, 2):
+    if type(schema) is not int or schema not in (1, 2, 3):
         raise ValueError(f"{manifest_path}: unsupported runtime schema {schema!r}")
     if schema == 1:
         if "layers" in manifest:
             raise ValueError(f"{manifest_path}: schema 1 must not contain layers")
         archives = [("rootfs", {"asset": manifest["rootfs"],
                      "bytes": manifest["rootfsBytes"], "sha256": manifest["rootfsSha256"]})]
-    else:
+    elif "layers" in manifest:
         if any(key in manifest for key in ("rootfs", "rootfsSha256", "rootfsFormat")):
-            raise ValueError(f"{manifest_path}: schema 2 must not contain a single rootfs archive")
+            raise ValueError(f"{manifest_path}: schema {schema} must not contain a single rootfs archive")
         layers = manifest["layers"]
         if not isinstance(layers, dict) or set(layers) != {"base", "engine"}:
-            raise ValueError(f"{manifest_path}: schema 2 requires base and engine layers")
+            raise ValueError(f"{manifest_path}: schema {schema} requires base and engine layers")
         archives = [(name, layers[name]) for name in ("base", "engine")]
+    else:
+        if schema != 3:
+            raise ValueError(f"{manifest_path}: schema 2 requires base and engine layers")
+        archives = [("rootfs", {"asset": manifest["rootfs"],
+                     "bytes": manifest["rootfsBytes"], "sha256": manifest["rootfsSha256"]})]
+    if schema == 3:
+        root = manifest.get("rootLaunch")
+        if (not isinstance(root, dict) or not isinstance(root.get("argv"), list)
+                or len(root["argv"]) < 2):
+            raise ValueError(f"{manifest_path}: schema 3 requires rootLaunch.argv")
+        if not isinstance(root.get("env"), dict) or not isinstance(root.get("binds"), list):
+            raise ValueError(f"{manifest_path}: schema 3 requires rootLaunch env and binds")
+        token = root.get("tokenLine")
+        if not isinstance(token, dict) or not token.get("regex") or not token.get("log"):
+            raise ValueError(f"{manifest_path}: schema 3 requires rootLaunch.tokenLine regex and log")
     for kind, archive in archives:
         if not isinstance(archive, dict):
             raise ValueError(f"{manifest_path}: invalid {kind} archive record")

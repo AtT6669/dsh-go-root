@@ -1634,9 +1634,9 @@ def cmd_assemble(args):
 # ---------------------------------------------------------------------------
 # manifest
 # ---------------------------------------------------------------------------
-def launch_template():
-    """The proot invocation the app runs (placeholders expanded by DshProcess.kt)."""
-    guest_env = [
+def guest_env():
+    """Environment every guest process gets, whether it runs under PRoot or chroot."""
+    return [
         "HOME=/root", "USER=root", "LOGNAME=root", "SHELL=/bin/bash",
         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         "LANG=C.UTF-8", "TERM=xterm-256color", "TMPDIR=/tmp",
@@ -1649,6 +1649,10 @@ def launch_template():
         "NARB_DISABLE_NATIVE_CACHE=1",
         "NODE_OPTIONS=--dns-result-order=ipv4first",
     ]
+
+
+def launch_template():
+    """The proot invocation the app runs (placeholders expanded by DshProcess.kt)."""
     argv = [
         "{NATIVE_LIB_DIR}/libproot.so",
         "--kill-on-exit", "--link2symlink", "--sysvipc", "-L", "-0",
@@ -1666,7 +1670,7 @@ def launch_template():
         "-b", "/system",
         "-b", "/apex",
         "/usr/bin/env", "-i",
-    ] + guest_env + [
+    ] + guest_env() + [
         "{GUEST_ENV}",
         "/bin/sh", "-c",
         "echo $$ > /tmp/dsh-web.pid; exec /usr/local/bin/dsh web --patch " + DSH_WEB_PATCH
@@ -1722,6 +1726,51 @@ def launch_template():
     }
 
 
+def root_launch_template():
+    """The chroot invocation used by the native root backend (no PRoot, no fake root).
+
+    [argv] is the *guest* command only: the app's privileged peer execs
+    libdshroot-init.so, which unshares a private mount namespace, mounts the kernel
+    filesystems, applies [binds] and [env], chroots into {ROOTFS} and execs argv in
+    place, so the guest really runs as uid 0. The helper's own flags never appear here.
+    """
+    return {
+        "argv": [
+            # Executed directly, not through `sh -c`: overlays append arguments and must not quote.
+            "/usr/local/bin/dsh", "web", "--patch", DSH_WEB_PATCH,
+            "--host", "127.0.0.1", "--port", "{PORT}", "--no-open",
+        ],
+        "env": dict(item.split("=", 1) for item in guest_env()),
+        "binds": [
+            # The helper always mounts proc and bind-mounts /dev itself; these are the extra ones.
+            "/sys:/sys:ro",
+            "/system:/system:ro",
+            "/apex:/apex:ro",
+            "/storage/emulated/0:/sdcard",
+        ],
+        "chownShared": ["/root/.dsh", "/opt/dsh-app", "/opt/dsh-go", "/tmp"],
+        "placeholders": {
+            "{NATIVE_LIB_DIR}": "applicationInfo.nativeLibraryDir (libdshroot-init.so lives here)",
+            "{ROOTFS}": "filesDir/runtime/rootfs; the peer passes it as the helper's --root",
+            "{PORT}": "loopback port chosen by the app",
+        },
+        "tokenLine": {
+            "stream": "stdout",
+            "note": "the root peer redirects the helper's stdout to the log file below",
+            "log": "{ROOTFS}/var/log/dsh-web.log",
+            "regex": "^dsh web: (http://127\\.0\\.0\\.1:[0-9]+/)\\?token=([A-Za-z0-9_-]+)",
+        },
+        "stop": {
+            "graceful": "the helper calls setsid(), so the app asks the peer to kill the whole "
+                        "process group: SIGTERM then SIGKILL after 5s",
+        },
+        "files": {
+            "resolvConf": "{ROOTFS}/etc/resolv.conf",
+            "dshHome": "{ROOTFS}/root/.dsh",
+        },
+    }
+
+
 def cmd_manifest(args):
     report = json.load(open(args.report))
     jni = json.load(open(args.jnilibs))
@@ -1735,7 +1784,7 @@ def cmd_manifest(args):
             if layer["asset"] not in names:
                 raise SystemExit("invalid %s asset name for ABI %s" % (kind, args.abi))
     m = {
-        "schema": 2 if layered else 1,
+        "schema": 3,
         "runtimeVersion": v["runtimeVersion"],
         "upgrade": report.get("upgrade"),
         "abi": args.abi,
@@ -1785,6 +1834,7 @@ def cmd_manifest(args):
             "compatibilityGate": "nonempty or unreadable PRoot hard-link backing store selects proot; late L2S targets are refused without data migration",
         },
         "launch": launch_template(),
+        "rootLaunch": root_launch_template(),
         "build": v.get("build", {}),
     }
     with open(args.out, "w") as f:

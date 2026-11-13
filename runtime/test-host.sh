@@ -33,11 +33,11 @@ archive_names="$(python3 -I - "$MANIFEST" <<'PY'
 import json, sys
 manifest = json.load(open(sys.argv[1]))
 schema = manifest.get("schema", 1)
-if schema == 1:
-    print(manifest["rootfs"])
-elif schema == 2:
+if "layers" in manifest:
     for layer in ("base", "engine"):
         print(manifest["layers"][layer]["asset"])
+elif "rootfs" in manifest:
+    print(manifest["rootfs"])
 else:
     sys.exit("unsupported runtime manifest schema: %s" % schema)
 PY
