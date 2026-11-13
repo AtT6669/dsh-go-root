@@ -11,11 +11,13 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import io.github.ccch1mneyyy.dsh_app.phone.PhoneControl
+import io.github.ccch1mneyyy.dsh_app.phone.background.RootNativeOps
 import io.github.ccch1mneyyy.dsh_app.root.RootExecServer
 import org.json.JSONArray
 import org.json.JSONObject
 import io.github.ccch1mneyyy.dsh_app.phone.skills.PhoneSkillRoute
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.Executors
 
 /**
@@ -54,7 +56,10 @@ class RuntimeController private constructor(private val app: Context) : DshProce
 
     val manifest: RuntimeManifest by lazy { RuntimeManifest.load(app) }
     private val installer by lazy { RuntimeInstaller(app, manifest, ::note) }
-    @Volatile private var process: DshProcess? = null
+    /** Native root mode: schema 3 manifests carry a chroot launcher and are unpacked as uid 0. */
+    private val rootGate by lazy { RootGate(app) }
+    private val rootMode get() = manifest.rootLaunch != null
+    @Volatile private var process: EngineProcess? = null
     @Volatile private var lastLaunch: LaunchDiagnostics? = null
     /** The start in progress is turning PRoot's fake hard links into real files (see [L2sMigration]). */
     @Volatile private var tidyingFiles = false
@@ -155,6 +160,9 @@ class RuntimeController private constructor(private val app: Context) : DshProce
         "launchSpawned" to (lastLaunch?.spawned == true),
         "launchFailureReason" to lastLaunch?.failureReason,
         "tidyingFiles" to tidyingFiles,
+        // Native root mode: the app unpacks nothing until this grant is on file.
+        "rootRequired" to rootMode,
+        "rootAuthorized" to rootGate.authorized(),
     )
 
     private fun directEngine() = DirectLaunch.Preference(
@@ -206,6 +214,18 @@ class RuntimeController private constructor(private val app: Context) : DshProce
         return if (active) runSafe else safeState == SafeState.ON
     }
 
+    /**
+     * The gate page: store consent, then make the privileged peer prove it is uid 0.
+     * `null` means root is ready; anything else is a reason code for the UI.
+     */
+    fun requestRoot(onDone: (String?) -> Unit) {
+        worker.execute {
+            val reason = runCatching { rootGate.request() }
+                .getOrElse { it.message ?: RootGate.UNAVAILABLE }
+            main.post { onDone(reason) }
+        }
+    }
+
     /** [dropKept]: give up what a reset kept but cannot be put back (see [KeepFailed]). */
     @Synchronized fun install(dropKept: Boolean = false, onDone: (Throwable?) -> Unit) {
         if (phase == Phase.INSTALLING) return onDone(null)
@@ -221,13 +241,17 @@ class RuntimeController private constructor(private val app: Context) : DshProce
             try {
                 log("[dsh-app] unpacking runtime ${manifest.runtimeVersion} (${manifest.abi})", "system")
                 val started = System.currentTimeMillis()
-                if (installer.rootfs.exists() &&
-                    !DshProcess(app, manifest, installer.rootfs, this).killStrays()) {
-                    throw RuntimeUpgradeBlocked("running")
-                }
-                if (dropKept) log("[dsh-app] installing without what could not be kept", "system")
-                installer.install(dropKept) { done, total ->
-                    emit(mapOf("type" to "progress", "step" to "extract", "done" to done, "total" to total))
+                if (rootMode) {
+                    installAsRoot(dropKept)
+                } else {
+                    if (installer.rootfs.exists() &&
+                        !DshProcess(app, manifest, installer.rootfs, this).killStrays()) {
+                        throw RuntimeUpgradeBlocked("running")
+                    }
+                    if (dropKept) log("[dsh-app] installing without what could not be kept", "system")
+                    installer.install(dropKept) { done, total ->
+                        emit(mapOf("type" to "progress", "step" to "extract", "done" to done, "total" to total))
+                    }
                 }
                 log("[dsh-app] runtime ready in ${(System.currentTimeMillis() - started) / 1000}s", "system")
                 error = null
@@ -242,6 +266,76 @@ class RuntimeController private constructor(private val app: Context) : DshProce
                 log("[dsh-app] ${error}", "system")
                 setPhase(Phase.ERROR)
                 main.post { onDone(e) }
+            }
+        }
+    }
+
+    /**
+     * Everything the guest may have written as root inside the paths the app itself owns.
+     * Directory write is what matters (replace, not modify), so this is deliberately shallow
+     * and cheap enough to run on every start.
+     */
+    private fun handSharedPathsToApp() {
+        val launch = manifest.rootLaunch ?: return
+        // Guest paths: the peer resolves them inside the rootfs it chroots into.
+        val paths = launch.chownShared + listOf("/etc", "/etc/resolv.conf", "/tmp")
+        try {
+            rootGate.chown(paths, recursive = false)
+        } catch (error: Exception) {
+            log("[dsh-app] root: could not hand shared paths back to the app (${error.message}); overlays may be stale", "system")
+        }
+    }
+
+    /**
+     * The peer unpacks as uid 0 — it owns the tree it will chroot into — then hands every file
+     * back to the app uid, so the app can still write overlays and delete things later.
+     * Progress is polled over the same consent as execution; no file on disk is involved.
+     */
+    private fun installAsRoot(dropKept: Boolean) {
+        rootGate.ready()?.let { throw RuntimeUpgradeBlocked(it) }
+        log("[dsh-app] root granted: unpacking as uid 0 into ${installer.rootfs}", "system")
+        if (dropKept) log("[dsh-app] installing without what could not be kept", "system")
+        rootGate.install(manifest.raw.toString(), dropKept)
+        awaitRootJob(progress = true)
+    }
+
+    /** The guest wrote as root, so only the peer can take the tree away; same job poll as install. */
+    private fun resetAsRoot(keep: List<String>) {
+        rootGate.ready()?.let { throw RuntimeUpgradeBlocked(it) }
+        rootGate.reset(manifest.raw.toString(), keep)
+        awaitRootJob(progress = false)
+    }
+
+    private fun awaitRootJob(progress: Boolean) {
+        val deadline = System.currentTimeMillis() + ROOT_INSTALL_TIMEOUT_MS
+        while (true) {
+            if (System.currentTimeMillis() > deadline) throw RuntimeUpgradeBlocked("installTimeout")
+            val status = rootGate.installStatus() ?: throw IOException(RootGate.UNAVAILABLE)
+            when (status.getString(RootNativeOps.PHASE)) {
+                RootNativeOps.DONE_PHASE -> return
+                RootNativeOps.FAILED_PHASE -> {
+                    val message = status.getString(RootNativeOps.MESSAGE) ?: "rootInstallFailed"
+                    // The installer reports "kept paths could not be moved" through this prefix.
+                    if (message.startsWith("keep:")) throw KeepFailed(message.removePrefix("keep: could not move "))
+                    throw IOException(message)
+                }
+                else -> {
+                    // The job exists before the begin reply, so "idle" means a different peer
+                    // process: the one that started the unpack is gone and the work with it.
+                    if (status.getString(RootNativeOps.PHASE) == RootNativeOps.IDLE) {
+                        throw IOException(RootGate.UNAVAILABLE)
+                    }
+                    if (progress) {
+                        emit(
+                            mapOf(
+                                "type" to "progress", "step" to "extract",
+                                "done" to status.getLong(RootNativeOps.DONE),
+                                "total" to status.getLong(RootNativeOps.TOTAL),
+                            ),
+                        )
+                    }
+                    Thread.sleep(ROOT_INSTALL_POLL_MS)
+                }
             }
         }
     }
@@ -457,8 +551,11 @@ class RuntimeController private constructor(private val app: Context) : DshProce
         setPhase(Phase.STARTING)
         timeline.requested()
         worker.execute {
-            var launched: DshProcess? = null
+            var launched: EngineProcess? = null
             try {
+                // The guest runs as root, so its files are root-owned; give the app enough of
+                // them back (directory write, not ownership) to replace overlays before each start.
+                if (rootMode) handSharedPathsToApp()
                 noteDns(GuestSetup.writeResolvConf(app, installer.rootfs), DnsConfigSource.START)
                 val storage = pendingPhoneStorage && PhoneStorage.isGranted(app) && PhoneStorage.binds().isNotEmpty()
                 PhoneStorage.syncShortcut(installer.rootfs, storage)
@@ -481,7 +578,11 @@ class RuntimeController private constructor(private val app: Context) : DshProce
                 env["TZ"] = java.util.TimeZone.getDefault().id
                 env.putAll(pendingEnv)
                 workspaceRecovery.applyEnvironment(env)
-                PerformancePolicy.applyEngineEnvironment(app, env, manifest.launchArgv, manifest.launchEnv)
+                PerformancePolicy.applyEngineEnvironment(
+                    app, env,
+                    manifest.rootLaunch?.argv ?: manifest.launchArgv,
+                    manifest.rootLaunch?.env ?: manifest.launchEnv,
+                )
                 // Root execution: the guest reaches the phone's root peer over the shared loopback.
                 // The token lives only in this launch's environment.
                 RootExecServer.ensureStarted(app)?.let { env.putAll(it.guestEnv()) }
@@ -500,37 +601,48 @@ class RuntimeController private constructor(private val app: Context) : DshProce
                 // startProcess advances runGen under this same monitor. Publish only while
                 // this queued launch still owns that generation; once published, its non-null
                 // process prevents another start from advancing the generation underneath it.
+                val listener = object : DshProcess.Listener by this@RuntimeController {
+                    override fun onLog(line: String, stream: String, storageLine: String) {
+                        if (stream != "system") {
+                            synchronized(runTail) {
+                                if (gen == runGen) {
+                                    runTail.addLast(storageLine)
+                                    while (runTail.size > CrashClassifier.TAIL_LINES) runTail.removeFirst()
+                                }
+                            }
+                        }
+                        this@RuntimeController.onLog(line, stream, storageLine)
+                    }
+                }
                 val p = synchronized(this@RuntimeController) {
                     if (stopGen >= gen || gen != runGen) null
-                    else DshProcess(
-                        app, manifest, installer.rootfs,
-                        object : DshProcess.Listener by this@RuntimeController {
-                            override fun onLog(line: String, stream: String, storageLine: String) {
-                                if (stream != "system") {
-                                    synchronized(runTail) {
-                                        if (gen == runGen) {
-                                            runTail.addLast(storageLine)
-                                            while (runTail.size > CrashClassifier.TAIL_LINES) runTail.removeFirst()
-                                        }
-                                    }
-                                }
-                                this@RuntimeController.onLog(line, stream, storageLine)
-                            }
-                        },
-                    ).also {
-                        launched = it
-                        lastLaunch = it.launchDiagnostics
-                        process = it
-                    }
+                    else if (rootMode) RootDshProcess(app, manifest, installer.rootfs, listener)
+                    else DshProcess(app, manifest, installer.rootfs, listener)
+                }?.also {
+                    launched = it
+                    lastLaunch = it.launchDiagnostics
+                    process = it
                 } ?: run {
                     PhoneControl.get(app).onEngineStopped()
                     return@execute
                 }
                 timeline.spawned()
-                val direct = directEngine()
-                p.start(env, if (storage) PhoneStorage.binds() else emptyList(), safe, phone, direct.requested, direct.failed, searchOverlay, authOverlay, speechOverlay) { actualDirect ->
-                    // SafeMode.prepare writes its own briefing; leave the original home untouched.
-                    if (!safe) GuestSetup.writeAgentsMd(installer.rootfs, storage, phone, pendingVisualReplies, actualDirect)
+                when (p) {
+                    is RootDshProcess -> {
+                        // Written as the app before the peer starts: the agent reads it at boot.
+                        if (!safe) GuestSetup.writeAgentsMd(installer.rootfs, storage, phone, pendingVisualReplies, false)
+                        p.start(
+                            env, if (storage) PhoneStorage.binds() else emptyList(),
+                            safe, phone, searchOverlay, authOverlay, speechOverlay,
+                        )
+                    }
+                    is DshProcess -> {
+                        val direct = directEngine()
+                        p.start(env, if (storage) PhoneStorage.binds() else emptyList(), safe, phone, direct.requested, direct.failed, searchOverlay, authOverlay, speechOverlay) { actualDirect ->
+                            // SafeMode.prepare writes its own briefing; leave the original home untouched.
+                            if (!safe) GuestSetup.writeAgentsMd(installer.rootfs, storage, phone, pendingVisualReplies, actualDirect)
+                        }
+                    }
                 }
                 if (phone) PhoneControl.get(app).launched(p.phoneMounted)
             } catch (e: Throwable) {
@@ -633,12 +745,15 @@ class RuntimeController private constructor(private val app: Context) : DshProce
                 }
                 // A finished waiter may have reported incomplete cleanup. Captured identities
                 // outlive its launcher; do not retire their rootfs while any still remain.
-                val cleanup = DshProcess(app, manifest, installer.rootfs, this).reapStrays()
-                check(cleanup.complete) { "runtime stop incomplete; retry reset after cleanup" }
+                if (!rootMode) {
+                    val cleanup = DshProcess(app, manifest, installer.rootfs, this).reapStrays()
+                    check(cleanup.complete) { "runtime stop incomplete; retry reset after cleanup" }
+                }
                 lastLaunch = null
                 try {
                     check(runtimeLogs.pauseDisk()) { "log reset pause timed out" }
-                    installer.reset(keep.flatMap { it.paths })
+                    val keepPaths = keep.flatMap { it.paths }
+                    if (rootMode) resetAsRoot(keepPaths) else installer.reset(keepPaths)
                 } finally {
                     runtimeLogs.resumeDisk()
                 }
@@ -934,7 +1049,7 @@ class RuntimeController private constructor(private val app: Context) : DshProce
         emitStatus()
     }
 
-    override fun onStartupFailure(source: DshProcess) {
+    override fun onStartupFailure(source: EngineProcess) {
         // failStart holds the process monitor; stopProcess takes controller -> process.
         // Never take the controller monitor synchronously on that callback thread.
         main.post {
@@ -958,7 +1073,7 @@ class RuntimeController private constructor(private val app: Context) : DshProce
         return true
     }
 
-    @Synchronized override fun onReady(source: DshProcess, baseUrl: String, token: String) {
+    @Synchronized override fun onReady(source: EngineProcess, baseUrl: String, token: String) {
         // A late report from a stopped or replaced process.
         if (source !== process || phase == Phase.STOPPING || source.startupError != null ||
             stopGen >= runGen || resetting) return
@@ -993,7 +1108,7 @@ class RuntimeController private constructor(private val app: Context) : DshProce
         }, SafePolicy.HEALTHY_MS)
     }
 
-    @Synchronized override fun onExit(source: DshProcess, code: Int, expected: Boolean) {
+    @Synchronized override fun onExit(source: EngineProcess, code: Int, expected: Boolean) {
         if (source !== process) return
         try {
             if (source.startupError != null) source.launchDiagnostics.failed("startFailed")
@@ -1125,6 +1240,9 @@ class RuntimeController private constructor(private val app: Context) : DshProce
         private const val K_DIRECT_FAILED = "directEngineFailedRuntime"
         private const val MAIN_FAILURE_LOG = "failure-normal.log"
         private const val LATEST_FAILURE_LOG = "failure-latest.log"
+        /** A root-side unpack of a 200 MB runtime over slow storage still finishes well inside this. */
+        private const val ROOT_INSTALL_TIMEOUT_MS = 20 * 60_000L
+        private const val ROOT_INSTALL_POLL_MS = 500L
 
         @Volatile private var instance: RuntimeController? = null
 

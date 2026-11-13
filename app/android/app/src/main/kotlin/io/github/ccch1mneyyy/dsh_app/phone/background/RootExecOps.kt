@@ -57,8 +57,8 @@ internal object RootExecOps {
 
 // java.lang.Process.pid() is Java 9+ and not in Android's public SDK, so read
 // the private pid field of the concrete UNIXProcess via reflection. Top-level so
-// both RootExecCore and its nested Job class can call it.
-private fun Process.pidCompat(): Int = try {
+// RootExecCore, its nested Job class and RootNativeCore can all call it.
+internal fun Process.pidCompat(): Int = try {
     val f = javaClass.getDeclaredField("pid")
     f.isAccessible = true
     f.getInt(this)

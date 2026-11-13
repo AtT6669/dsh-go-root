@@ -72,6 +72,8 @@ class RuntimePlugin :
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "getStatus" -> result.success(controller.status())
+            // The root gate page: null means the privileged peer answered as uid 0.
+            "requestRoot" -> controller.requestRoot { reason -> result.success(reason) }
             "publishDiagnostics" -> {
                 val markdown = call.argument<String>("markdown")
                 val manual = call.argument<Any?>("manual") == true

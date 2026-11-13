@@ -104,6 +104,28 @@ class RootExecController(
         }
     }
 
+    /**
+     * One privileged op for the native-root backend (root-side unpack, the chroot launch and
+     * its stop), on the same consent and the same peer as [exec]. The reply comes back as it
+     * is so the caller reads its own keys; null means the peer could not be reached at all.
+     */
+    internal fun privileged(build: Bundle.() -> Unit): Bundle? {
+        if (!isAuthorized()) {
+            lastError = "rootNotAuthorized"
+            return null
+        }
+        val channel = ensureConnected() ?: return null
+        val request = Bundle().apply(build)
+        val reply = send(channel, request) ?: return null
+        if (!reply.getBoolean(Proto.OK)) lastError = reply.getString(Proto.ERROR) ?: "rootExecuteFailed"
+        val op = request.getString(Proto.OP).orEmpty()
+        // Status polls repeat every second; only real actions belong in the audit trail.
+        if (op != RootNativeOps.OP_INSTALL_STATUS && op != RootNativeOps.OP_CHROOT_STATUS) {
+            audit.append("app", if (reply.getBoolean(Proto.OK)) 0 else -1, 0, "[root] $op")
+        }
+        return reply
+    }
+
     fun exec(command: String, cwd: String? = null, env: Map<String, String> = emptyMap(),
              timeoutMs: Int = RootExecOps.DEFAULT_TIMEOUT_MS, caller: String = "app"): Result {
         val started = System.currentTimeMillis()

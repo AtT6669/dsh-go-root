@@ -15,7 +15,7 @@ internal fun checkEngineCompatibility(baseDir: File, raw: JSONObject, version: S
     if (parseUpgrade(shipped) != next || shipped.optString("runtimeVersion") != version) {
         throw RuntimeUpgradeBlocked("manifest")
     }
-    val base = if (raw.optInt("schema", 1) == 2) {
+    val base = if (raw.optInt("schema", 1) >= 2) {
         parseBaseCompatibility(raw).also {
             if (parseBaseCompatibility(shipped) != it) throw RuntimeUpgradeBlocked("manifest")
         }

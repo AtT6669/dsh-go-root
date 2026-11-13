@@ -11,8 +11,12 @@ class LaunchDiagnostics {
     @Volatile var failureReason: String? = null
         private set
 
-    fun selected(direct: Boolean, fallback: String?) {
-        selectedMode = if (direct) "direct" else "proot"
+    fun selected(direct: Boolean, fallback: String?) =
+        selected(if (direct) "direct" else "proot", fallback)
+
+    /** Native root mode names itself: the guest runs under chroot, neither proot nor the loader. */
+    fun selected(mode: String, fallback: String?) {
+        selectedMode = mode
         fallbackReason = fallback
     }
 

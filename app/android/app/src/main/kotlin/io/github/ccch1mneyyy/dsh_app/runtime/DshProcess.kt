@@ -27,14 +27,14 @@ class DshProcess(
     private val manifest: RuntimeManifest,
     private val rootfs: File,
     private val listener: Listener,
-) {
+) : EngineProcess {
     interface Listener {
         /** Raw display line and a separate copy with streamed private-key bodies removed. */
         fun onLog(line: String, stream: String, storageLine: String = line)
-        fun onReady(source: DshProcess, baseUrl: String, token: String)
-        fun onExit(source: DshProcess, code: Int, expected: Boolean)
+        fun onReady(source: EngineProcess, baseUrl: String, token: String)
+        fun onExit(source: EngineProcess, code: Int, expected: Boolean)
         /** Called under the process monitor: enqueue owner updates without waiting for its lock. */
-        fun onStartupFailure(source: DshProcess)
+        fun onStartupFailure(source: EngineProcess)
         /** The start is busy turning PRoot's fake hard links into real files (true), or done (false). */
         fun onTidying(active: Boolean) {}
     }
@@ -52,25 +52,25 @@ class DshProcess(
         RuntimeProcessOwnership.cleanupState(rootfs.canonicalPath, AndroidProcess.myUid())
     }
     private val cleanupKnown get() = cleanupState.known
-    var port: Int = DEFAULT_PORT
+    override var port: Int = DEFAULT_PORT
         private set
 
-    @Volatile var startupError: String? = null
+    override var startupError: String? = null
         private set
 
-    @Volatile var startupTokenTimedOut: Boolean = false
+    @Volatile override var startupTokenTimedOut: Boolean = false
         private set
 
     /** The launch command got the phone-control overlay (see [PhoneGuest.launchArg]). */
-    var phoneMounted: Boolean = false
+    override var phoneMounted: Boolean = false
         private set
 
     /** Actual method for this process, fixed before it can be spawned. Safe mode stays proot. */
-    var direct: Boolean = false
+    override var direct: Boolean = false
         private set
 
-    val launchDiagnostics = LaunchDiagnostics()
-    val executionMode: String? get() = launchDiagnostics.currentMode(process?.isAlive == true)
+    override val launchDiagnostics = LaunchDiagnostics()
+    override val executionMode: String? get() = launchDiagnostics.currentMode(process?.isAlive == true)
 
     var directFallbackReason: String? = null
         private set
@@ -251,7 +251,7 @@ class DshProcess(
     }
 
     /** Waits for cleanup and exit reporting; zero waits until completion. */
-    fun awaitExit(millis: Long = 0): Boolean {
+    override fun awaitExit(millis: Long): Boolean {
         // The waiter joins the stopper before reporting exit. Startup can fail
         // after spawning but before allocating it, so await the stopper then.
         val ending = waiter ?: stopper
@@ -260,7 +260,7 @@ class DshProcess(
     }
 
     /** Preserve a startup failure through cleanup and the service's later STOP. */
-    @Synchronized fun failStart(message: String) {
+    @Synchronized override fun failStart(message: String) {
         if (stopping) {
             // STOP may have preceded spawn, then setup failed before start's final stop().
             // Preserve its expected-exit/error facts while cleaning any process now present.
@@ -277,7 +277,7 @@ class DshProcess(
      * proot ignores SIGTERM, so stop DSH itself first (pid file written by the launch
      * command), then SIGQUIT proot, which kills every remaining tracee.
      */
-    @Synchronized fun stop(expected: Boolean = true) {
+    @Synchronized override fun stop(expected: Boolean) {
         stopping = true
         startupSignal.countDown()
         if (expected) expectedExit = true
@@ -402,7 +402,7 @@ class DshProcess(
     }
 
     /** Reap a captured process tree before releasing #17 ownership to another launch. */
-    @Synchronized fun killStrays(): Boolean = reapStrays().complete
+    @Synchronized override fun killStrays(): Boolean = reapStrays().complete
 
     internal data class CleanupResult(val complete: Boolean, val ownedRemaining: Boolean, val canPruneTemp: Boolean = false)
 

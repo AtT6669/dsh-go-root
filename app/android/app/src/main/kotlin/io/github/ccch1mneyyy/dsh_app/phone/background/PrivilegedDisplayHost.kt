@@ -43,6 +43,7 @@ internal class PrivilegedDisplayHost(private val context: Context) {
     private val scopes = OwnerScopes<PrivilegedDisplayCore, HostedRelease>()
     private val recoveryPlatform = RecoveryPlatform()
     private val rootExec = RootExecCore()
+    private val rootNative by lazy { RootNativeCore(context) }
     private val birth by lazy { runCatching { recoveryPlatform.birth(peerInstance) }.getOrNull() }
     @Volatile private var retirementComplete = false
 
@@ -62,6 +63,8 @@ internal class PrivilegedDisplayHost(private val context: Context) {
         }
         // Execution ops answer on their own: they borrow the peer's uid, never a display or owner scope.
         if (op in RootExecOps.OPS) return rootExec.handle(request)
+        // Native root mode: root-side unpack and the chroot launcher, same peer, same uid.
+        if (op in RootNativeOps.OPS) return rootNative.handle(request)
         if (op == Proto.OP_RECOVERY_RETIRE) return retire(request)
         if (op == Proto.OP_RECOVERY_CHECK) return checkRecovery(request)
         if (op == Proto.OP_DESTROY || op == Proto.OP_GRANT_SECURE_SETTINGS) {

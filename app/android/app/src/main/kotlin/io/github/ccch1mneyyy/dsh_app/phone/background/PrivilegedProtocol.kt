@@ -16,7 +16,7 @@ object Proto {
     const val REPLAY_NAVIGATION = "replayNavigation"
     const val OP_REPLAY_NAVIGATION = "replayNavigation"
     const val NAVIGATION = "navigation"
-    const val REVISION = "dsh-vdisplay-2"
+    const val REVISION = "dsh-vdisplay-3"
     const val RESOURCE_RECOVERY_VERSION = "resourceRecoveryVersion"
     const val RECOVERY_PEER = "recoveryPeer"
     const val RECOVERY_BOOT = "recoveryBoot"
