@@ -80,7 +80,7 @@ jobs:
           printf 'sdk.dir=%s\nflutter.sdk=%s\n' "$ANDROID_HOME" "$FLUTTER_ROOT" > app/android/local.properties
 
       - name: Build the APK
-        run: bash tooling/build-apk.sh -f arm64 --build-name 1.0.16
+        run: bash tooling/build-apk.sh -f arm64 --build-name 1.0.17
 
       - name: Compute APK checksums
         run: |

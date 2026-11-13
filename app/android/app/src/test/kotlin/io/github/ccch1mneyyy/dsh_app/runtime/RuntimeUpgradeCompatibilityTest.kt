@@ -42,6 +42,12 @@ class RuntimeUpgradeCompatibilityTest {
         assertEquals("user packages", File(base, "rootfs/var/lib/dpkg/status").readText())
     }
 
+    @Test fun schemaThreeSingleArchiveIsNotMistakenForLayeredAssets() {
+        installed()
+        next.put("schema", 3)
+        assertEquals(ENGINE_PATHS, check().paths)
+    }
+
     @Test fun sameSystemAllowsIndependentEngineVersions() {
         installed()
         assertEquals("a".repeat(64), check().baseId)

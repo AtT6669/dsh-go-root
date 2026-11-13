@@ -73,6 +73,18 @@ class RuntimeUpgradeIntegrationTest {
         assertEquals("user package database", File(base, "rootfs/var/lib/dpkg/status").readText())
     }
 
+    @Test fun schemaThreeSingleArchiveInstallsAndUpgradesWithoutLayerDescriptors() {
+        next.put("schema", 3)
+        installed(true); stage(); activate()
+        assertEquals("new engine", File(base, "rootfs/opt/dsh/version").readText())
+        assertEquals("user package database", File(base, "rootfs/var/lib/dpkg/status").readText())
+        assertEquals("new", File(base, "rootfs.version").readText())
+        base.deleteRecursively(); base.mkdirs()
+        stage(); activate()
+        assertEquals("factory package database", File(base, "rootfs/var/lib/dpkg/status").readText())
+        assertEquals("new", File(base, "rootfs.version").readText())
+    }
+
     @Test fun onlyFirstInstallActivatesTheBundledSystem() {
         stage(); activate()
         assertEquals("factory gh (must not replace the user copy)", File(base, "rootfs/usr/bin/gh").readText())

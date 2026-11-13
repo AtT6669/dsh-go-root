@@ -5,6 +5,12 @@ import java.nio.file.Files
 import java.security.MessageDigest
 import org.json.JSONObject
 
+/**
+ * Only base+engine bundles declare their base layer. Manifest schema 3 adds the chroot
+ * launcher and is still used for a single archive, so the schema number cannot decide this.
+ */
+internal fun isLayeredBundle(raw: JSONObject): Boolean = raw.optJSONObject("baseCompatibility") != null
+
 internal fun checkEngineCompatibility(baseDir: File, raw: JSONObject, version: String, abi: String): EngineUpgradeSpec {
     val rootfs = File(baseDir, "rootfs")
     val staging = File(baseDir, "staging")
@@ -15,7 +21,7 @@ internal fun checkEngineCompatibility(baseDir: File, raw: JSONObject, version: S
     if (parseUpgrade(shipped) != next || shipped.optString("runtimeVersion") != version) {
         throw RuntimeUpgradeBlocked("manifest")
     }
-    val base = if (raw.optInt("schema", 1) >= 2) {
+    val base = if (isLayeredBundle(raw)) {
         parseBaseCompatibility(raw).also {
             if (parseBaseCompatibility(shipped) != it) throw RuntimeUpgradeBlocked("manifest")
         }
