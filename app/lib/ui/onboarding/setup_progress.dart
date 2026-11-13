@@ -19,6 +19,7 @@ import '../common/progress_halo.dart';
 import '../engine/engine_status.dart' show humanizeRuntimeError;
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
+import 'root_gate_page.dart' show ensureRootForInstall;
 import 'runtime_setup_page.dart' show showRuntimeLogSheet;
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -453,6 +454,12 @@ class _SetupStatusSheet extends ConsumerWidget {
 
   final VoidCallback? onRemote;
 
+  /// Same gate as the page: in root mode no unpack starts without the grant.
+  Future<void> _retryInstall(BuildContext context, WidgetRef ref) async {
+    if (!await ensureRootForInstall(context, ref)) return;
+    await ref.read(runtimeInstallProvider.notifier).install();
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
@@ -532,7 +539,7 @@ class _SetupStatusSheet extends ConsumerWidget {
             const SizedBox(height: 24),
             if (failed) ...[
               _FailedActions(
-                onRetry: () => unawaited(ref.read(runtimeInstallProvider.notifier).install()),
+                onRetry: () => unawaited(_retryInstall(context, ref)),
                 onRemote: switch (onRemote) {
                   final remote? => () {
                     navigator.pop();

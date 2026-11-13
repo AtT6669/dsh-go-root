@@ -275,6 +275,7 @@ class RuntimeLaunchFacts extends StatelessWidget {
     String method(String mode) => switch (mode) {
       'direct' => l10n.phoneLaunchDirect,
       'proot' => l10n.phoneLaunchCompatible,
+      'root' => l10n.phoneLaunchRoot,
       _ => mode,
     };
     // One child of the card: keep SheetGroup's 2dp between its rows.

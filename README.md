@@ -6,7 +6,7 @@
 
 [ccch1mneyyy/dsh-go](https://github.com/ccch1mneyyy/dsh-go) 的非官方二开分支：**让 root 用户在 App 里真正能用 root**，并把 [dsh-purge](https://github.com/kingcharleslzy-ai/dsh-purge) 预装进内置运行时。
 
-原版能力（PRoot Ubuntu 环境、模型对话、插件市场、手机控制、遥控电脑等）全部保留，只改 root 相关链路与构建期插件。
+原版能力（Ubuntu 环境、模型对话、插件市场、手机控制、遥控电脑等）全部保留，只改 root 相关链路与构建期插件：**内置运行时改由系统 root 解包并 chroot 启动，不再有 PRoot 的假 root。**
 
 <br>
 
@@ -29,7 +29,9 @@
 
 原版给 root 留了管道，但实际体验是"连不连都一样"：命令被保活策略、路径白名单、API 34 预检层层挡住，能做的事很窄，Agent 也发现不了这条通道。
 
-本分支把 root 当成一等公民：**一次授权之后，App 与内置 CLI 的 root 命令静默执行、全部留痕，Agent 也能自动发现并调用**。
+本分支把 root 当成一等公民：**环境本身就跑在系统真实 root 下，一次授权之后，App 与内置 CLI 的 root 命令静默执行、全部留痕，Agent 也能自动发现并调用**。
+
+真 root 环境：首次运行时 App 经 `su` 启动一个 uid 0 的 peer 进程，由它解包 rootfs、把文件归属交回 App，再用 `libdshroot-init.so` 执行 `unshare(CLONE_NEWNS)` → 挂载 proc/sysfs、bind /dev 与清单目录 → `chroot` → `execv`。guest 里 `whoami` 就是 `root`，`/proc`、绝对路径、硬链接、inotify 都是真实的。**没有授权时不解包、不启动，也不回退到 PRoot。**
 
 <div align="center">
 
@@ -71,7 +73,7 @@ flowchart LR
 
 - Android 8.0 及以上，arm64 真机（x86_64 模拟器需自行用 `-f x64` 构建）。
 - 内置运行时首次启动会解包（Ubuntu 24.04 + Node + dsh 引擎 + 插件），需要额外存储与几分钟等待，之后才可对话。
-- Root 功能可选：有 Magisk / KernelSU / APatch 并能授予 `su` 时可用；没有 root 也能正常当普通客户端使用。
+- **必需 Root**：内置环境部署在系统真实 root 下（chroot），首次运行必须授予 `su`（Magisk / KernelSU / APatch 均可）；未授权时不会解包，也不会启动任何组件。
 
 ---
 

@@ -6712,6 +6712,7 @@
   "phoneReturnCompatible": "切回兼容启动",
   "phoneLaunchDirect": "直接启动",
   "phoneLaunchCompatible": "兼容启动",
+  "phoneLaunchRoot": "Root 真实启动",
   "phoneDirectIncompatibleFiles": "插件文件待整理，暂用兼容启动",
   "phoneDirectNotEnoughSpace": "空间不足，暂用兼容启动",
   "phoneDirectMigrationFailed": "文件整理未完成，暂用兼容启动",
@@ -9822,6 +9823,21 @@
   "phoneRuntimeUpgradeInterrupted": "运行时升级尚未完成，数据与恢复现场已保留。请重试安装；仍失败时导出诊断并联系维护者，不要重置或删除恢复目录。",
   "phoneRuntimeUpgradeSymlink": "现有环境的系统路径已被自定义链接替换，无法安全更新。原环境保留，请先备份并联系维护者处理。",
   "phoneRuntimeUpgradeRunning": "引擎或遗留进程尚未确认停止，更新未开始。请先停止本机引擎，等待清理完成后重试；不要重置环境。",
+  "runtimeRootGateTitle": "需要系统 Root 权限",
+  "runtimeRootGateBody": "本机的 Linux 环境部署在系统真实的 Root 权限下：由 root 进程解包、统一归属，再 chroot 启动。不再使用 PRoot 的模拟 root，/proc、文件权限和路径都是真实的。",
+  "runtimeRootGateFactOnce": "只需授权一次；之后每次启动都由同一个 root 进程拉起引擎。",
+  "runtimeRootGateFactBlocked": "未获得 Root 权限前，不会解包，也不会启动任何组件。",
+  "runtimeRootGateGrant": "授权并继续",
+  "runtimeRootGateFailed": "没有获得 Root 权限（{reason}）。请在 Root 管理器中允许本应用，然后重试。",
+  "@runtimeRootGateFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "runtimeRootGateNeeded": "本机环境需要系统 Root 权限才能安装或启动。请重新授权后重试。",
+  "runtimeRootGateUnavailable": "Root 通道不可用：请确认已在 Root 管理器中允许本应用，且系统允许挂载与 chroot。",
   "schemaDocumentationTitle": "字段说明",
   "schemaDocumentationOverview": "概述",
   "schemaDocumentationEach": "每一项",

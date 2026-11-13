@@ -7,9 +7,9 @@
 | 层 | 选型 | 理由 |
 |---|---|---|
 | UI | Flutter 3.47（Dart 3.13）+ Riverpod 3 | 玻璃质感（`BackdropFilter`）在各 ROM 上表现一致；可直接移植 PiPilot（MIT）的聊天组件；未来 iOS / OpenHarmony 有路径 |
-| 原生层 | Kotlin（Flutter 插件形式，写在 app 内） | 解压运行时、管理 proot 进程、前台服务 |
+| 原生层 | Kotlin（Flutter 插件形式，写在 app 内） | 解压运行时、管理引擎进程（root chroot / proot / 直接加载）、前台服务 |
 | DSH 客户端 | 纯 Dart 包 `packages/dsh_client` | 无 Flutter 依赖，可单测；本地与远程共用 |
-| 本地运行时 | Ubuntu 24.04 base + Node + `@deepseek-ai/dsh`，经 proot 运行 | App 自带，免 Root、免 Termux |
+| 本地运行时 | Ubuntu 24.04 base + Node + `@deepseek-ai/dsh`；当前包由系统 root 解包并在 chroot 中运行，旧包仍可经 proot 运行 | App 自带，需要 root 授权 |
 
 ## 目录
 
@@ -110,6 +110,13 @@ EventChannel `dsh/runtime/events`，事件 map：
 - 升级前确认引擎及遗留进程已停止。新载荷先在 engine.prepare 落盘，再发布为 engine.upgrade；旧引擎临时保存在该事务中。按精确路径改名，数据屏障后原子提交 rootfs.version，最后把事务改名为 engine.done 再清理。启动不得将未完成事务当作可运行版本，重试必须先恢复事务，再清理 staging。
 - 必须重新构建运行时资产，使归档与 manifest 都带新契约；只重建 Flutter APK、复用旧 runtime/out 不能启用分层升级。旧资产遇到已有环境会安全停止，而不是整根覆盖。
 - 不兼容时原始系统保留在 App 私有目录。此实现不自动迁移基础系统，也不提供一键全环境备份；迁移或重置前应离线导出完整环境，保留模式、符号链接与包数据库，并验证备份，不能用诊断 ZIP 代替。
+
+## 运行方式
+
+1. 当前 manifest（schema 3）带 `rootLaunch`：App 经既有 root 通道（`su` → `app_process` peer，uid 0）解包 rootfs，再把整棵 `runtime/` chown 回 App uid；启动前只对 `chownShared` 与 `/etc`、`/tmp` 做非递归 chown。
+2. 同一个 peer 执行 `libdshroot-init.so`：`unshare(CLONE_NEWNS)` + 私有挂载 + 挂载 proc/sysfs + bind /dev 与清单目录 + `chroot` + `execv`，所以 guest 是真实 uid 0（`/proc`、绝对路径、硬链接、inotify 均为真实）。引擎由 peer 持有，App 通过 `rootChrootStatus` 轮询存活、`rootChrootStop` 杀进程组。
+3. 没有 root 授权时不解包、不启动，也不回退；旧 bundle（schema 1/2，无 `rootLaunch`）仍按 proot（`--link2symlink -L -0`）或直接加载器启动，仅作兼容保留。
+4. App 侧唯一入口是 `runtime/RootGate.kt`：`install`/`reset`/`chown`/`launch`/`engineStatus`/`stop`；需要 root 时返回 `rootNotAuthorized`、`rootUnavailable`、`rootRequired` 或 `rootExecuteFailed`。
 
 ## 本地连接
 

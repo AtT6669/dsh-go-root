@@ -88,9 +88,14 @@ String? humanizeRuntimeError(String? raw) {
       'running' => appL10n.phoneRuntimeUpgradeRunning,
       'symlink' => appL10n.phoneRuntimeUpgradeSymlink,
       'transaction' || 'legacy_interrupted' => appL10n.phoneRuntimeUpgradeInterrupted,
+      'rootNotAuthorized' || 'rootRequired' => appL10n.runtimeRootGateNeeded,
+      'rootUnavailable' || 'rootExecuteFailed' => appL10n.runtimeRootGateUnavailable,
       _ => appL10n.phoneRuntimeUpgradeManifest,
     };
   }
+  // A start attempt in root mode: the gate refused, so no engine was launched.
+  if (text == 'rootNotAuthorized' || text == 'rootRequired') return appL10n.runtimeRootGateNeeded;
+  if (text == 'rootUnavailable' || text == 'rootExecuteFailed') return appL10n.runtimeRootGateUnavailable;
   if (text == 'no startup token received within 180s') return appL10n.phoneStartupTokenTimeout;
   if (RegExp(r'^token seen but port [0-9]+ never accepted connections$').hasMatch(text)) {
     return appL10n.phoneStartupPortNotReady;

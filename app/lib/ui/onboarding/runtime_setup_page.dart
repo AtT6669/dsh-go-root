@@ -17,6 +17,7 @@ import '../shell/adaptive/adaptive_layout.dart' show WindowClass;
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
 import 'onboarding_scaffold.dart';
+import 'root_gate_page.dart';
 import 'runtime_choice.dart';
 import 'setup_progress.dart';
 
@@ -92,13 +93,16 @@ class _RuntimeSetupPageState extends ConsumerState<RuntimeSetupPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final phase = ref.read(localRuntimeProvider).status.phase;
-      if (phase == RuntimePhase.notInstalled && !_asks) _install();
+      if (phase == RuntimePhase.notInstalled && !_asks) unawaited(_install());
     });
   }
 
+  /// Root mode first asks for the grant: there is no unpack before a uid 0 peer.
+  ///
   /// Through the one entry ([runtimeInstallProvider]): a request while an
   /// unpack is on its way is that same unpack.
-  void _install({bool dropKept = false}) {
+  Future<void> _install({bool dropKept = false}) async {
+    if (!await ensureRootForInstall(context, ref) || !mounted) return;
     setState(() => _installRequested = true);
     // Sample the time left from the start.
     ref.read(installEtaProvider);
@@ -162,7 +166,7 @@ class _RuntimeSetupPageState extends ConsumerState<RuntimeSetupPage> {
           ? RuntimeChoiceView(
               key: const ValueKey('choose'),
               leading: widget.leading,
-              onLocal: widget.onLocal ?? () => _install(),
+              onLocal: widget.onLocal ?? () => unawaited(_install()),
               onRemote: widget.onRemote!,
             )
           : KeyedSubtree(key: const ValueKey('progress'), child: _progress(context, state, view)),
@@ -275,7 +279,7 @@ class _RuntimeSetupPageState extends ConsumerState<RuntimeSetupPage> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: FilledButton(onPressed: () => _install(), child: Text(l10n.commonRetry)),
+                child: FilledButton(onPressed: () => unawaited(_install()), child: Text(l10n.commonRetry)),
               ),
             ],
           ),
@@ -317,7 +321,7 @@ class _RuntimeSetupPageState extends ConsumerState<RuntimeSetupPage> {
           // The way out when kept files cannot go back: quiet, in the log link's place.
           Center(
             child: TextButton(
-              onPressed: () => _install(dropKept: true),
+              onPressed: () => unawaited(_install(dropKept: true)),
               style: TextButton.styleFrom(foregroundColor: scheme.onSurfaceVariant),
               child: Text(l10n.shellRuntimeContinueWithoutKept),
             ),

@@ -20858,6 +20858,12 @@ abstract class L10n {
   /// **'兼容启动'**
   String get phoneLaunchCompatible;
 
+  /// No description provided for @phoneLaunchRoot.
+  ///
+  /// In zh, this message translates to:
+  /// **'Root 真实启动'**
+  String get phoneLaunchRoot;
+
   /// No description provided for @phoneDirectIncompatibleFiles.
   ///
   /// In zh, this message translates to:
@@ -28819,6 +28825,54 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'引擎或遗留进程尚未确认停止，更新未开始。请先停止本机引擎，等待清理完成后重试；不要重置环境。'**
   String get phoneRuntimeUpgradeRunning;
+
+  /// No description provided for @runtimeRootGateTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要系统 Root 权限'**
+  String get runtimeRootGateTitle;
+
+  /// No description provided for @runtimeRootGateBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'本机的 Linux 环境部署在系统真实的 Root 权限下：由 root 进程解包、统一归属，再 chroot 启动。不再使用 PRoot 的模拟 root，/proc、文件权限和路径都是真实的。'**
+  String get runtimeRootGateBody;
+
+  /// No description provided for @runtimeRootGateFactOnce.
+  ///
+  /// In zh, this message translates to:
+  /// **'只需授权一次；之后每次启动都由同一个 root 进程拉起引擎。'**
+  String get runtimeRootGateFactOnce;
+
+  /// No description provided for @runtimeRootGateFactBlocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'未获得 Root 权限前，不会解包，也不会启动任何组件。'**
+  String get runtimeRootGateFactBlocked;
+
+  /// No description provided for @runtimeRootGateGrant.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权并继续'**
+  String get runtimeRootGateGrant;
+
+  /// No description provided for @runtimeRootGateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有获得 Root 权限（{reason}）。请在 Root 管理器中允许本应用，然后重试。'**
+  String runtimeRootGateFailed(String reason);
+
+  /// No description provided for @runtimeRootGateNeeded.
+  ///
+  /// In zh, this message translates to:
+  /// **'本机环境需要系统 Root 权限才能安装或启动。请重新授权后重试。'**
+  String get runtimeRootGateNeeded;
+
+  /// No description provided for @runtimeRootGateUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'Root 通道不可用：请确认已在 Root 管理器中允许本应用，且系统允许挂载与 chroot。'**
+  String get runtimeRootGateUnavailable;
 
   /// No description provided for @schemaDocumentationTitle.
   ///

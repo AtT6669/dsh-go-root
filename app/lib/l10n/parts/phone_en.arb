@@ -434,6 +434,7 @@
   "phoneReturnCompatible": "Use compatible launch",
   "phoneLaunchDirect": "Direct launch",
   "phoneLaunchCompatible": "Compatible launch",
+  "phoneLaunchRoot": "Real root launch",
   "phoneDirectIncompatibleFiles": "Plugin files not tidied yet, compatible launch for now",
   "phoneDirectNotEnoughSpace": "Not enough storage, compatible launch for now",
   "phoneDirectMigrationFailed": "File tidy-up unfinished, compatible launch for now",

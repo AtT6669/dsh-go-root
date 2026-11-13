@@ -11261,6 +11261,9 @@ class L10nZh extends L10n {
   String get phoneLaunchCompatible => '兼容启动';
 
   @override
+  String get phoneLaunchRoot => 'Root 真实启动';
+
+  @override
   String get phoneDirectIncompatibleFiles => '插件文件待整理，暂用兼容启动';
 
   @override
@@ -15781,6 +15784,32 @@ class L10nZh extends L10n {
 
   @override
   String get phoneRuntimeUpgradeRunning => '引擎或遗留进程尚未确认停止，更新未开始。请先停止本机引擎，等待清理完成后重试；不要重置环境。';
+
+  @override
+  String get runtimeRootGateTitle => '需要系统 Root 权限';
+
+  @override
+  String get runtimeRootGateBody => '本机的 Linux 环境部署在系统真实的 Root 权限下：由 root 进程解包、统一归属，再 chroot 启动。不再使用 PRoot 的模拟 root，/proc、文件权限和路径都是真实的。';
+
+  @override
+  String get runtimeRootGateFactOnce => '只需授权一次；之后每次启动都由同一个 root 进程拉起引擎。';
+
+  @override
+  String get runtimeRootGateFactBlocked => '未获得 Root 权限前，不会解包，也不会启动任何组件。';
+
+  @override
+  String get runtimeRootGateGrant => '授权并继续';
+
+  @override
+  String runtimeRootGateFailed(String reason) {
+    return '没有获得 Root 权限（$reason）。请在 Root 管理器中允许本应用，然后重试。';
+  }
+
+  @override
+  String get runtimeRootGateNeeded => '本机环境需要系统 Root 权限才能安装或启动。请重新授权后重试。';
+
+  @override
+  String get runtimeRootGateUnavailable => 'Root 通道不可用：请确认已在 Root 管理器中允许本应用，且系统允许挂载与 chroot。';
 
   @override
   String get schemaDocumentationTitle => '字段说明';

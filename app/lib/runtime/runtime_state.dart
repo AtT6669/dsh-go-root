@@ -94,6 +94,9 @@ class LocalRuntimeController extends Notifier<LocalRuntimeState> {
     }
   }
 
+  /// Re-reads the native snapshot, e.g. after the root gate stored a grant.
+  Future<void> refresh() => _refresh();
+
   Future<void> install() {
     ref.read(readListCredentialEpochProvider.notifier).advance();
     return _bridge.install();

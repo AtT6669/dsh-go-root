@@ -649,6 +649,7 @@
   "phoneReturnCompatible": "切回兼容启动",
   "phoneLaunchDirect": "直接启动",
   "phoneLaunchCompatible": "兼容启动",
+  "phoneLaunchRoot": "Root 真实启动",
   "phoneDirectIncompatibleFiles": "插件文件待整理，暂用兼容启动",
   "phoneDirectNotEnoughSpace": "空间不足，暂用兼容启动",
   "phoneDirectMigrationFailed": "文件整理未完成，暂用兼容启动",

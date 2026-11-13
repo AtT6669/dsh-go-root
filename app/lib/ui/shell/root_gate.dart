@@ -18,6 +18,7 @@ import '../../state/onboarding_state.dart';
 import '../../state/settings_state.dart';
 import '../../ui_config/ui_skill.dart';
 import '../onboarding/onboarding_flow.dart';
+import '../onboarding/root_gate_page.dart' show ensureRootForInstall;
 import '../onboarding/setup_progress.dart';
 import '../remote/remote_screen.dart';
 import '../theme/theme.dart';
@@ -146,7 +147,9 @@ class _RootGateState extends ConsumerState<RootGate> {
   OnboardingPrefsController get _prefs => ref.read(onboardingPrefsProvider.notifier);
 
   /// The unpack, through the one entry (a second request is the first one).
-  void _startUnpack() {
+  /// Root mode gets its grant first: nothing is unpacked before that.
+  Future<void> _startUnpack() async {
+    if (!await ensureRootForInstall(context, ref) || !mounted) return;
     // Time left is estimated from the first progress report on.
     ref.read(installEtaProvider);
     unawaited(ref.read(runtimeInstallProvider.notifier).install());
@@ -168,7 +171,7 @@ class _RootGateState extends ConsumerState<RootGate> {
   void _chooseLocal() {
     _beside = true;
     unawaited(_prefs.setSetupStep(SetupStep.appearance));
-    _startUnpack();
+    unawaited(_startUnpack());
     _goTo(OnboardingStep.appearance);
   }
 
@@ -269,7 +272,7 @@ class _RootGateState extends ConsumerState<RootGate> {
       if (!_beside) return unawaited(_prefs.setSetupStep(null));
       switch (setupRuntimeOf(status)) {
         case SetupRuntime.absent:
-          _startUnpack();
+          unawaited(_startUnpack());
         case SetupRuntime.ready when _step != OnboardingStep.finishing:
           _startEngineBeside();
         case _:

@@ -172,6 +172,8 @@ class RuntimeStatus {
     this.launchSpawned = false,
     this.launchFailureReason,
     this.tidyingFiles = false,
+    this.rootRequired = false,
+    this.rootAuthorized = false,
   });
 
   const RuntimeStatus.unknown() : this(phase: RuntimePhase.notInstalled);
@@ -241,6 +243,11 @@ class RuntimeStatus {
   /// files for more than a moment (once per install, before Direct launch).
   final bool tidyingFiles;
 
+  /// The bundled runtime runs under real system root (chroot), not PRoot: nothing
+  /// is unpacked and nothing starts before [rootAuthorized].
+  final bool rootRequired;
+  final bool rootAuthorized;
+
   Map<String, Object?> get launchDiagnostics => {
     'directEngineEnabled': directEngineEnabled,
     'directEngineAvailable': directEngineAvailable,
@@ -304,6 +311,8 @@ class RuntimeStatus {
     launchSpawned: map['launchSpawned'] == true,
     launchFailureReason: map['launchFailureReason'] as String?,
     tidyingFiles: map['tidyingFiles'] == true,
+    rootRequired: map['rootRequired'] == true,
+    rootAuthorized: map['rootAuthorized'] == true,
   );
 }
 
@@ -562,6 +571,17 @@ class RuntimeBridge {
   /// [dropKept]: give up what a reset kept but cannot be put back.
   Future<void> install({bool dropKept = false}) =>
       _methods.invokeMethod<void>('install', dropKept ? const {'dropKept': true} : null);
+
+  /// The root gate page: stores consent and makes the privileged peer answer as
+  /// uid 0 (the first call raises su). Null means root is ready; otherwise the
+  /// reason code, e.g. `rootUnavailable` on a ROM that refuses the peer.
+  Future<String?> requestRoot() async {
+    try {
+      return await _methods.invokeMethod<String>('requestRoot');
+    } on MissingPluginException {
+      return 'rootUnavailable';
+    }
+  }
 
   /// [phoneStorage] mounts the phone's shared storage at /sdcard (needs [requestStorage] first).
   /// [mode] null keeps the current mode; [EngineMode.normal] while in safe mode starts the

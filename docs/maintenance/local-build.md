@@ -63,7 +63,7 @@ python3 app/tool/l10n_merge.py --check   # 期望退出码 0
 
 `app/lib/l10n/gen/` 是**构建输入**且不入库忽略，跳过这一步会因为缺少生成文件而编译失败。
 
-## 4. 构建 PRoot 运行时
+## 4. 构建运行时（root helper + PRoot 兼容）
 
 ```sh
 bash runtime/build-runtime.sh arm64-v8a
@@ -73,7 +73,10 @@ python3 -I tooling/check_runtime_bundle.py arm64   # 自检
 产出在 `runtime/out/arm64-v8a/`：
 
 - `assets/runtime/base-arm64-v8a.tar.xz`、`engine-arm64-v8a.tar.xz`、`manifest.json`
-- `jniLibs/arm64-v8a/libproot.so`、`libproot-loader.so`、`libtalloc.so`、`libandroid-shmem.so`
+- `jniLibs/arm64-v8a/libproot.so`、`libproot-loader.so`、`libtalloc.so`、`libandroid-shmem.so`（旧 bundle 的兼容路径）
+- `jniLibs/arm64-v8a/libdshroot-init.so`（`tooling/rootinit/dsh_root_init.c` 用 NDK 的 clang 静态编译；`check_runtime_bundle.py` 与 schema 3 manifest 都要求它存在）
+
+`manifest.json` 一旦是 schema 3（带 `rootLaunch`），App 就会改用系统 root 解包并在 chroot 里启动；没有 root 授权时不会解包。helper 的编译依赖 `ANDROID_NDK_HOME`（`tooling/env.sh` 已设置），缺 NDK 时这一步直接失败，不会产出缺 helper 的 bundle。
 
 这一步会下载 Ubuntu base rootfs、Node、dsh 引擎与 pnpm 锁、内置插件，全部按 `runtime/build-runtime.sh` 顶部的 `PIN` 表校验 sha256。缓存留在 `runtime/.cache/`，失败后重跑不会重复下载。
 
@@ -138,10 +141,10 @@ apk=app/build/app/outputs/flutter-apk/app-arm64-release.apk
 sha256sum "$apk"
 "$ANDROID_HOME"/build-tools/*/aapt2 dump badging "$apk" | head -3
 "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$apk"
-unzip -l "$apk" | grep -E 'assets/runtime|lib/arm64-v8a/libproot' | head
+unzip -l "$apk" | grep -E 'assets/runtime|lib/arm64-v8a/lib(proot|dshroot-init)' | head
 ```
 
-`unzip -l` 必须能看到 `assets/runtime/manifest.json`、两个 layer 压缩包和四个 `lib*.so`；没有就说明装进去的是个没有引擎的壳。
+`unzip -l` 必须能看到 `assets/runtime/manifest.json`、两个 layer 压缩包、四个 proot `lib*.so` 和 `libdshroot-init.so`；没有就说明装进去的是个没有引擎的壳。
 
 装机后（真机、已 root）：
 

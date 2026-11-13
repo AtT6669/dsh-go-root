@@ -11854,6 +11854,9 @@ class L10nEn extends L10n {
   String get phoneLaunchCompatible => 'Compatible launch';
 
   @override
+  String get phoneLaunchRoot => 'Real root launch';
+
+  @override
   String get phoneDirectIncompatibleFiles => 'Plugin files not tidied yet, compatible launch for now';
 
   @override
@@ -16620,6 +16623,34 @@ class L10nEn extends L10n {
   @override
   String get phoneRuntimeUpgradeRunning =>
       'The engine or a leftover process has not been confirmed stopped. The update has not started. Stop the local engine and wait for cleanup before retrying; do not reset the environment.';
+
+  @override
+  String get runtimeRootGateTitle => 'System root is required';
+
+  @override
+  String get runtimeRootGateBody =>
+      'The Linux environment on this phone is deployed under real system root: a root process unpacks it, hands you the files, and starts it with chroot. There is no PRoot fake root, so /proc, file permissions and paths are real.';
+
+  @override
+  String get runtimeRootGateFactOnce => 'You grant it once; every later start uses the same root process.';
+
+  @override
+  String get runtimeRootGateFactBlocked => 'Nothing is unpacked or started until root is granted.';
+
+  @override
+  String get runtimeRootGateGrant => 'Grant and continue';
+
+  @override
+  String runtimeRootGateFailed(String reason) {
+    return 'Root was not granted ($reason). Allow this app in your root manager, then try again.';
+  }
+
+  @override
+  String get runtimeRootGateNeeded => 'The local environment needs system root to install or start. Grant it again and retry.';
+
+  @override
+  String get runtimeRootGateUnavailable =>
+      'The root channel is unavailable: make sure your root manager allows this app and the system permits mounts and chroot.';
 
   @override
   String get schemaDocumentationTitle => 'Field descriptions';
