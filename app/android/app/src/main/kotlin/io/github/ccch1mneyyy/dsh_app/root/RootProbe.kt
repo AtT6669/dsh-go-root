@@ -95,7 +95,7 @@ object RootProbe {
         return status
     }
 
-    private fun firstLine(text: String): String =
+    private fun firstLine(text: String): String? =
         text.lineSequence().firstOrNull { it.isNotBlank() }?.take(200)
 
     private fun now(): Long = System.currentTimeMillis()

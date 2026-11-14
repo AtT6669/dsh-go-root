@@ -3,6 +3,7 @@ package io.github.ccch1mneyyy.dsh_app.root
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.util.concurrent.ExecutorService
@@ -13,7 +14,7 @@ import java.util.concurrent.Executors
  * commands. `status` is never allowed to run `su`; only `request` (an explicit
  * user action) may prompt the manager.
  */
-class RootPlugin : io.flutter.plugin.common.FlutterPlugin, MethodChannel.MethodCallHandler {
+class RootPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private lateinit var context: Context
     private lateinit var channel: MethodChannel
     private val main = Handler(Looper.getMainLooper())
@@ -21,13 +22,13 @@ class RootPlugin : io.flutter.plugin.common.FlutterPlugin, MethodChannel.MethodC
         Thread(task, "dsh-root-plugin").apply { isDaemon = true }
     }
 
-    override fun onAttachedToEngine(binding: io.flutter.plugin.common.FlutterPlugin.FlutterPluginBinding) {
+    override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
         channel = MethodChannel(binding.binaryMessenger, "dsh/root")
         channel.setMethodCallHandler(this)
     }
 
-    override fun onDetachedFromEngine(binding: io.flutter.plugin.common.FlutterPlugin.FlutterPluginBinding) {
+    override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
         io.shutdownNow()
     }
