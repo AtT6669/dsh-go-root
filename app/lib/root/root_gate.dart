@@ -39,9 +39,10 @@ class _RootGateState extends State<RootGate> {
     if (snapshot.phase.grantedNow) {
       final broker = await RootChannel.startBroker();
       if (!broker) {
+        final why = await RootChannel.brokerError();
         snapshot = RootSnapshot(
           phase: RootPhase.revoked,
-          detail: 'RootBroker 启动失败：授权可能已被撤销',
+          detail: why.isEmpty ? 'RootBroker 启动失败：授权可能已被撤销' : 'RootBroker 启动失败：$why',
           manager: snapshot.manager,
         );
       }
@@ -51,9 +52,10 @@ class _RootGateState extends State<RootGate> {
       if (snapshot.phase.grantedNow) {
         final broker = await RootChannel.startBroker();
         if (!broker) {
+          final why = await RootChannel.brokerError();
           snapshot = RootSnapshot(
             phase: RootPhase.revoked,
-            detail: '已授权但 RootBroker 启动失败',
+            detail: why.isEmpty ? '已授权但 RootBroker 启动失败' : 'RootBroker 启动失败：$why',
             manager: snapshot.manager,
           );
         }

@@ -26,3 +26,6 @@
 -dontwarn org.bouncycastle.**
 -keep class org.conscrypt.** { *; }
 -keep class io.github.muntashirakon.adb.** { *; }
+
+# Root broker: started by `su -c app_process ... RootBrokerMain`, outside R8's view.
+-keep class io.github.ccch1mneyyy.dsh_app.root.** { *; }

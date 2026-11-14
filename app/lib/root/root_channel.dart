@@ -52,6 +52,17 @@ class RootChannel {
     }
   }
 
+  /// stderr / exception tail from the last broker start, for the gate screen.
+  static Future<String> brokerError() async {
+    try {
+      return (await _channel.invokeMethod<String>('brokerError')) ?? '';
+    } on MissingPluginException {
+      return '';
+    } on PlatformException catch (error) {
+      return error.message ?? '';
+    }
+  }
+
   static Future<void> stopBroker() => _channel.invokeMethod<void>('brokerStop');
 
   static Future<String> audit({int lines = 200}) async =>

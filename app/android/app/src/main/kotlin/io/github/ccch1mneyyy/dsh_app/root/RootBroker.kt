@@ -3,6 +3,7 @@ package io.github.ccch1mneyyy.dsh_app.root
 import android.content.Context
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.util.concurrent.CompletableFuture
@@ -23,6 +24,10 @@ class RootBroker private constructor(private val context: Context) {
     @Volatile private var writer: PrintWriter? = null
     @Volatile private var alive = false
     @Volatile var lastError: String? = null
+        private set
+
+    /** Last lines the uid-0 child wrote to stderr (class loading, SELinux, app_process). */
+    @Volatile var lastStderr: String = ""
         private set
 
     val running: Boolean get() = alive && process?.isAlive == true
@@ -49,9 +54,11 @@ class RootBroker private constructor(private val context: Context) {
 
         Thread({ drainErrors(started) }, "dsh-root-broker-err").apply { isDaemon = true; start() }
         Thread({ readLoop(started) }, "dsh-root-broker-out").apply { isDaemon = true; start() }
-        val ready = request("ping", JSONObject(), 10_000)
+        // app_process cold start plus ART class loading can exceed 10 s on older devices.
+        val ready = request("ping", JSONObject(), 20_000)
         if (ready == null) {
-            lastError = "broker handshake failed"
+            val tail = lastStderr.trim().takeLast(300)
+            lastError = if (tail.isEmpty()) "broker handshake failed" else "broker handshake failed: $tail"
             stop()
             return false
         }
@@ -155,13 +162,21 @@ class RootBroker private constructor(private val context: Context) {
     }
 
     private fun drainErrors(started: Process) {
-        // su and the manager write prompts here; keep the pipe empty, keep nothing.
+        // Keep the tail: a class-load or SELinux failure is only visible here.
+        val tail = StringBuilder()
         runCatching {
             val buffer = ByteArray(4096)
-            while (started.errorStream.read(buffer) >= 0) {
-                // discarded
+            while (true) {
+                val read = started.errorStream.read(buffer)
+                if (read <= 0) break
+                synchronized(tail) {
+                    tail.append(String(buffer, 0, read, Charsets.UTF_8))
+                    if (tail.length > 4096) tail.delete(0, tail.length - 4096)
+                }
             }
         }
+        lastStderr = synchronized(tail) { tail.toString() }
+        runCatching { File(context.cacheDir, "root-broker-stderr.log").writeText(lastStderr) }
     }
 
     companion object {

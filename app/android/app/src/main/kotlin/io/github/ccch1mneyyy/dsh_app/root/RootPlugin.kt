@@ -39,7 +39,9 @@ class RootPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "request" -> io.execute {
                 val status = RootProbe.request(context)
                 if (status.phase == RootPhase.granted && !RootBroker.get(context).start()) {
-                    val revoked = RootProbe.revoked(context, "RootBroker 启动失败")
+                    val broker = RootBroker.get(context)
+                    val why = (broker.lastError ?: broker.lastStderr.trim().takeLast(200)).ifBlank { "unknown" }
+                    val revoked = RootProbe.revoked(context, "RootBroker 启动失败: $why")
                     post { result.success(revoked.toMap()) }
                 } else {
                     post { result.success(status.toMap()) }
@@ -48,6 +50,11 @@ class RootPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "brokerStart" -> io.execute {
                 val ok = RootBroker.get(context).start()
                 post { result.success(mapOf("ok" to ok, "error" to RootBroker.get(context).lastError)) }
+            }
+            "brokerError" -> {
+                val broker = RootBroker.get(context)
+                result.success(listOfNotNull(broker.lastError, broker.lastStderr.trim().takeLast(400))
+                    .joinToString("\n").trim())
             }
             "brokerStop" -> {
                 RootBroker.get(context).stop()
