@@ -58,9 +58,9 @@ jobs:
           sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
           test -x "$sdkmanager" || sdkmanager="$sdk/tools/bin/sdkmanager"
           yes | "$sdkmanager" --licenses >/dev/null 2>&1 || true
-          # One fixed NDK for the static helper; Gradle may fetch its own for the app.
-          yes | "$sdkmanager" --install "ndk;27.2.12479018" >/dev/null
-          echo "ANDROID_NDK_HOME=$sdk/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          # NDK 28.2 is what tawcroot pins; the static helper builds with it too.
+          yes | "$sdkmanager" --install "ndk;28.2.13676358" >/dev/null
+          echo "ANDROID_NDK_HOME=$sdk/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
       - name: Build the static chroot helper
         run: |
