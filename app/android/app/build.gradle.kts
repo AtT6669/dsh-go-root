@@ -86,13 +86,13 @@ android {
         getByName("arm64") {
             assets.srcDir(File(runtimeOut, "arm64-v8a/assets"))
             jniLibs.srcDir(File(runtimeOut, "arm64-v8a/jniLibs"))
-            // tooling/build-root-exec.sh output; the helper is static and must survive packaging.
-            jniLibs.srcDir(rootProject.file("../../app/build/root-exec/arm64-v8a"))
+            // tooling/build-root-exec.sh output (dir contains <abi>/lib*.so).
+            jniLibs.srcDir(rootProject.file("../../app/build/root-exec"))
         }
         getByName("x64") {
             assets.srcDir(File(runtimeOut, "x86_64/assets"))
             jniLibs.srcDir(File(runtimeOut, "x86_64/jniLibs"))
-            jniLibs.srcDir(rootProject.file("../../app/build/root-exec/x86_64"))
+            jniLibs.srcDir(rootProject.file("../../app/build/root-exec"))
         }
     }
 
